@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+  font: 10px sans-serif;
+  padding: 10px;
+}
+
+.axis,
+.frame {
+  shape-rendering: crispEdges;
+}
+
+.axis line {
+  stroke: #ddd;
+}
+
+.axis path {
+  display: none;
+}
+
+.frame {
+  fill: none;
+  stroke: #aaa;
+}
+
+circle {
+  fill-opacity: .7;
+}
+
+circle.hidden {
+  fill: #ccc !important;
+}
+
+.extent {
+  fill: #000;
+  fill-opacity: .125;
+  stroke: #fff;
+}
+
+</style>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<script>
+
+var width = 960, size = 150, padding = 19.5;
+
+var xScale = d3.scale.linear().range([padding / 2, size - padding / 2]);
+var yScale = d3.scale.linear().range([size - padding / 2, padding / 2]);
+var xAxis = d3.svg.axis().scale(xScale).orient("bottom").ticks(5);
+var yAxis = d3.svg.axis().scale(yScale).orient("left") .ticks(5);
+var color = d3.scale.category10();
+var filteredFields = ["eval_id"];
+var fields;
+var global = this;
+d3.csv("flowers3.csv", function(error, inputData) {
+        if (error) throw error;
+        var domainByField = {},
+        fields = d3.keys(inputData[0])
+        .filter(function(d) { var i = filteredFields.indexOf(d); return i === -1; }),
+        fieldCount = fields.length;
+        fields.forEach(function(field) {//The minimum and maximum values corresponding to a field
+            domainByField[field] = d3.extent(inputData, function(d) { return d[field]; });
+            });
+
+        xAxis.tickSize(size * fieldCount);
+        yAxis.tickSize(-size * fieldCount);
+        
+        GioData ={};
+        fields.forEach(function(field){
+            GioData[field] = [];
+        });
+        inputData.forEach(function(row){
+            fields.forEach(function(field){
+                GioData[field].push(row[field]);
+            });
+
+        });
+        var points = [];
+        requiredFields = ['x1', 'x2'];
+         
+        GioData['x1'].forEach(function(x, i){
+            points.push([x, GioData['x2'][i]]);
+        });
+        
+
+        var brush = d3.svg.brush().x(xScale).y(yScale)
+        .on("brushstart", brushstart).on("brush", brushmove).on("brushend", brushend);
+
+        var svg = d3.select("body").append("svg")
+        .attr("width", size * fieldCount + padding).attr("height", size * fieldCount + padding)
+        .append("g").attr("transform", "translate(" + padding + "," + padding / 2 + ")");
+
+        svg.selectAll(".x.axis").data(fields).enter().append("g").attr("class", "x axis")
+            .attr("transform", function(d, i) { return "translate(" + (fieldCount - i - 1) * size + ",0)"; })
+            .each(function(d) { xScale.domain(domainByField[d]); d3.select(this).call(xAxis); });
+
+        svg.selectAll(".y.axis").data(fields).enter().append("g").attr("class", "y axis")
+            .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
+            .each(function(d) { yScale.domain(domainByField[d]); d3.select(this).call(yAxis); });
+
+        var cell = svg.selectAll(".cell").data(cartesian(fields, fields)).enter().append("g").attr("class", "cell")
+            .attr("transform", function(d) { return "translate(" + (fieldCount - d.i - 1) * size + "," + d.j * size + ")"; })
+            .each(plot);
+
+        // Titles for the diagonal.
+        cell.filter(function(d) { return d.i === d.j; }).append("text")
+            .attr("x", padding).attr("y", padding).attr("dy", ".71em").text(function(d) { return d.xScale; });
+
+        cell.call(brush);
+
+        function plot(selectorData) {
+            var cell = d3.select(this);
+
+            xScale.domain(domainByField[selectorData.x]);
+            yScale.domain(domainByField[selectorData.y]);
+
+            cell.append("rect").attr("class", "frame").attr("x", padding / 2)
+                .attr("y", padding / 2).attr("width", size - padding).attr("height", size - padding);
+
+            cell.selectAll("circle").data(inputData).enter().append("circle")
+                .attr("cx", function(d) { return xScale(d[selectorData.x]); })
+                .attr("cy", function(d) { return yScale(d[selectorData.y]); })
+                .attr("r", 3) .style("fill", function(d) { return color(d.species); });
+        }
+
+        var brushCell;
+
+        // Clear the previously-active brush, if any.
+        function brushstart(p) {
+            if (brushCell !== this) {
+                d3.select(brushCell).call(brush.clear());
+                xScale.domain(domainByField[p.x]);
+                yScale.domain(domainByField[p.y]);
+                brushCell = this;
+            }
+        }
+
+        // Highlight the selected circles.
+        function brushmove(p) {
+            var e = brush.extent();
+            svg.selectAll("circle").classed("hidden", function(d) {
+                    return e[0][0] > d[p.x] || d[p.x] > e[1][0]
+                    || e[0][1] > d[p.y] || d[p.y] > e[1][1];
+                    });
+        }
+
+        // If the brush is empty, select all circles.
+        function brushend() {
+            if (brush.empty()) svg.selectAll(".hidden").classed("hidden", false);
+        }
+
+        function cartesian(field1, field2) {
+            //both parameters are assumed as arrays of strings
+            var c = [], n = field1.length, m = field2.length, i, j;
+            for (i = 0; i < n; i++) 
+                for (j = 0; j < m; j++) 
+                    c.push({x: field1[i], i: i, y: field2[j], j: j});
+            return c;
+        }
+        d3.select(self.frameElement).style("height", size * fieldCount + padding + 20 + "px");
+});
+</script>
