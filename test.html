@@ -1,0 +1,13 @@
+<html>
+<head>
+    <script type="text/javascript" src = "js/util.js"></script>
+</head>
+<body>
+    <script type="text/javascript">
+            //var file = "30,70, 100\n5,6,7\n11,12,23";
+            var file = "Haile, alemu, kifle\n30,70, 100\n5,6,7\n11,12,23";
+            var res = dictReader(file, ',', ["first", "second", "third"]);
+            var res1 = dictReader(file, ',');
+            console.log(Object.keys(res), Object.keys(res1));
+    </script>
+</body>
