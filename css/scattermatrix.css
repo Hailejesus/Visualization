@@ -69,11 +69,11 @@ div.tooltip{
           -webkit-transition: fill-opacity 250ms linear;
         }
 
-        .chart circle { /*All circles which are descendents of an element with class 'chart'*/
+        .chart circle { /*All circles which are descendents of an element with class 'selecting'*/
           fill-opacity: .2;
         }
 
-        .chart circle.selected {/*All circles with class 'selected' which are descendants of elements with class 'chart'*/
+        .chart circle.selected {/*All circles with class 'selected' which are descendants of elements with class 'selecting'*/
           stroke: #f00;
         }
 
@@ -93,9 +93,6 @@ div.tooltip{
           fill: none; stroke: #000; shape-rendering: crispEdges;
         }
 
-        .brushEnd {
-          fill-opacity: 0;
-        }
         .brush .extent {
           fill-opacity: .125; shape-rendering: crispEdges;
         }
