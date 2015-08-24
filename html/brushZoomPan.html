@@ -35,6 +35,11 @@
                                 Browse <input id="filebrowsed" type="file" disabled>
                             </span>
                         </div>
+                        <div class="form-group">
+                            <label class="checkbox-inline">
+                                <input id="headerFlag" type="checkbox" />Has Header
+                            </label>
+                        </div>
                         <div class="form-group dropdown">
                             <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
                                xAxis 
@@ -84,7 +89,10 @@
             function readerHandler(e2){
                 fileContent = e2.target.result;
                 //rawdata = dictReader(fileContent, delim);
-                rawdata = csvDictReader(fileContent, delim);
+                //var headerFlag = d3.select('#headerFlag').property("checked");
+                var headerFlag = false;
+                rawdata = csvDictReader(fileContent, delim, headerFlag);
+                console.log(rawdata);
                 fields = Object.keys(rawdata[0]);
                 $("#xaxisName").empty();    //Clear the dropdown boxes before refilling
                 $("#yaxisName").empty();
@@ -247,7 +255,7 @@
                     .attr("transform", function(d, i){ 
                                     return "translate(" + navXScale(d[xaxisName]) + "," 
                                             + navYScale(d[yaxisName]) + ")"; 
-                    }).attr("r", 3.5);
+                    }).attr("r", 2);
 
                 /* */
                 var navBrush = d3.svg.brush().x(navXScale).extent([xMin, xMax])
@@ -306,6 +314,14 @@
                 function navBrushEnd() {
                     navChart.classed("chart", !d3.event.target.empty());
                     var selectedData = [];
+                    if(navBrush.empty()){
+                        navBrush.extent([xMin, xMax]);
+                        navChart.classed("chart", true);
+                        navPoints.classed("selected", true);
+                        console.log(navBrush.extent());
+                        console.log(d3.event.target.empty());
+                    }
+
                     var s = navBrush.extent();
                     
                     navPoints.each(function(d,i){ 
@@ -376,13 +392,16 @@
                             partialData[xaxisName].push(row[xaxisName]);
                             partialData[yaxisName].push(row[yaxisName]);
                         });
-                        
-                        if(partialData[xaxisName].length !== 0){ 
+                        var count = partialData[xaxisName].length;
+                        if(count !== 0){ 
                             var html = '<table>' 
                                 + '<thead>' 
                                 + '<tr><th></th>'
                                 + '<th>' + xaxisName + '</th><th>' + yaxisName + '</th>'
                                 + '</thead>'  
+                                + '<tfoot><tr>'
+                                + '<th colspan="0">Selection Size: ' + count + ' out of ' + rawdata.length + '</th></tr>'
+                                + '</tfoot>' 
                                 + '<tbody></tbody>';
                             
                             $("#statDiv").empty();  //Clear the table before redraw
@@ -402,22 +421,23 @@
                 var stats = ['min', 'mean'];
                 var getStat = {
                     "Minimum":min,  "Maximum": max, "Mean": mean,
-                    "Variance":variance, "Std": standardDeviation
+                    "Variance":variance, "Std. dev.": standardDeviation
                 };
                 function emptyToolTip(){
                         div.transition()
                             .duration(100)
                             .style('opacity', 0);
                 }
+                
                 function drawToolTip(coord,i){
                         html = '<table><tbody><tr>';
                         $.each(fields, function(idx, value){    //Fill header
                             html += '<th>' + value + '</th>';
                         });
                         html += "</tr><tr>";
-                        $.each(fields, function(idx, value){
-                            var v = rawdata[i][value];
-                            html += '<td>' + v.toFixed(3) + '</td>';
+                        $.each(fields, function(idx, field){
+                            var v = rawdata[i][field];
+                            html += '<td>' + trim(v, 3) +'</td>';
                         });
                         html += '</tr></tbody></table>'; 
                         div.transition().duration(100).style('opacity', 0.8);

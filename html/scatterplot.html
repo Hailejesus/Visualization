@@ -1,83 +1,566 @@
 <!DOCTYPE html>
-  <html>
-    <head>
-    <script type="text/javascript" src="http://mbostock.github.com/d3/d3.js"></script>
+<html>
+<head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+
+       <!--
+            ################## REMOTE RESOURCES ####################
+        <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+        <script src="http://d3js.org/d3.v3.min.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>-->
+       
+            <!-- ############## LOCAL RESOURCES  ############### -->
+        <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>
+        <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="../js/d3.v3.min.js"></script>
+        <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
     
-    <style type="text/css">
-      .axis path,
-      .axis line {
-        fill: none;
-        stroke: black;
-        shape-rendering: crispEdges;
-      }
-      .axis text {
-        font-family: sans-serif;
-        font-size: 11px;
-      }
-    </style>
-    </head>
-    <body>
-    <div id="scatterplot">
-        <h2 style="text-align:center">M/F Life Expectancy and Median Income By Country</h2>
-    </div>
+        <script src="../js/util.js" type="text/javascript"></script>
+        <!--<script src='http://www.macwright.org/simple-statistics/simple_statistics.js' type="text/javascript"></script>-->
+        <link rel="stylesheet" href="../css/scatterplot.css" />
+</head>
+<body>
+        <div class="container">
+            <div class = "row" style="padding-bottom:3%">
+                <div class="col-md-1">
+                </div>
+                <div class = "col-md-10">
+                    <form class="form-inline" role="form">
+                        <div class="form-group dropdown">
+                            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
+                                Separator
+                              <span class="caret"></span></button>
+                              <ul id="delim" class="dropdown-menu">
+                                <li><a href="#">Comma</a></li>
+                                <li><a href="#">Semicolon</a></li>
+                                <li><a href="#">Tab</a></li>
+                              </ul>
+                        </div>   
+                        <div class="form-group">
+                            <label class="checkbox-inline">
+                                <input id="headerFlag" type="checkbox" />Has Header
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <span class="btn btn-default btn-file">
+                                Browse <input id="filebrowsed" type="file" disabled>
+                            </span>
+                        </div>
+                        <div class="form-group dropdown">
+                            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
+                               xAxis 
+                              <span class="caret"></span></button>
+                              <ul id="xaxisName" class="dropdown-menu">
+                              </ul>
+                        </div>   
+                        <div class="form-group dropdown">
+                            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
+                               yAxis 
+                              <span class="caret"></span></button>
+                              <ul id="yaxisName" class="dropdown-menu">
+                              </ul>
+                        </div> 
+                        
+                        <div class="form-group dropdown">
+                            <input type="text" class="form-control" id="txtwidth" placeholder="Chart Width">
+                        </div> 
+                        <div class="form-group dropdown">
+                            <input type="text" class="form-control" id="txtheight" placeholder="Chart Height">
+                        </div> 
+                        <div class="form-group">        
+                            <button id="btnPlot" type="submit" class="btn btn-default" disabled>Plot</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-2">
+                    <div id="tooltipDiv" class="tooltip" style="opacity:0"> </div>
+                </div>
+                <div class="col-md-8">
+                    <div id='d3Chart'></div>
+                </div>
+                <div class="col-md-2">
+                    <div id="statDiv" class="col-md-12"> </div>
+                </div>
+            </div>
+            <div class="row">
+                <div id="toolboxtipDiv" class="tooltip" style="opacity:0"> </div>
+            </div>
+        </div>
+
     <script type="text/javascript">
-        var xMaleLE = [55, 70, 65, 60, 70, 67, 70, 80];
-        var yFemaleLE = [57, 58, 55, 57, 62, 75, 83, 85];
-        var rMedianIncome =[4800, 4900, 5200, 10000, 15000, 20000, 25000, 27000 ];
-        var tCountry = ["North Korea", "Ethiopia", "Vietnam", 
-          "South Africa", "Italy", "France","United Kingdom", "United States"];
-        var cCountry = ["rgb(127, 201, 127)","rgb(190, 174, 212)","rgb(253, 192, 134)",
-          "rgb(255, 255, 153)", "rgb(56, 108, 176)", "rgb(240, 2, 127)",
-          "rgb(191, 91, 23)", "rgb(102, 102, 102)"]
-        var margin = {top: 20, right: 15, bottom: 60, left: 60}
-          , width = 730 - margin.left - margin.right
-          , height = 730 - margin.top - margin.bottom; 
+        $(document).ready(function(event){
+            (function(){
+            var fileContent, rawdata = [], originalData = []; 
+            var fields, auxilaryFields, fieldCount, delim;
+            var xaxisName, yaxisName;
+            var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};
+            $("#delim li").on('click', function(event){
+                var selected = this.textContent;
+                delim = separators[selected];
+                /*if(selected === "Comma") delim = ',';
+                else if(selected === "Semicolon") delim = ';';
+                else delim = '\t'*/;
+                $("#filebrowsed").prop('disabled', false);
+            });
+            function readerHandler(e2){
+                fileContent = e2.target.result;
+                //rawdata = dictReader(fileContent, delim);
+                
+                var headerFlag = d3.select('#headerFlag').property("checked");
+                rawdata = csvDictReader(fileContent, delim, headerFlag);
+                originalData = rawdata.map(function(row){return clone(row);});
+                fields = Object.keys(rawdata[0]);
+                $("#xaxisName").empty();    //Clear the dropdown boxes before refilling
+                $("#yaxisName").empty();
+                $.each(fields, function(idx, fieldName){    //fill the drop down box
+                    $("#xaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
+                    $("#yaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
+                    $("#btnPlot").prop('disabled', false);
+                });
 
-        var x = d3.scale.linear().domain([d3.min(xMaleLE) - 20, d3.max(xMaleLE) + 20]).range([0, width]);
-        var y = d3.scale.linear().domain([d3.min(xMaleLE) - 20, d3.max(yFemaleLE) + 20]).range([height, 0]);
-        var r = d3.scale.linear().domain([d3.min(rMedianIncome), d3.max(rMedianIncome)]).range([5, 35]);
+                $("#xaxisName li").on('click', function(event){
+                    xaxisName = this.textContent;
+                });
+                $("#yaxisName li").on('click', function(event){
+                    yaxisName = this.textContent;
+                });
+            }
+           
+            function make_vLines(tickCount, xScale){ 
+                /*A function to generate vertical grid lines*/
+                return d3.svg.axis().scale(xScale).orient('bottom')//.ticks(tickCount);
+            }
+            
+            function make_hLines(tickCount, yScale){
+                /*A function to generate horizontal grid lines*/
+                return d3.svg.axis().scale(yScale).orient('left')//.ticks(tickCount);   
+            }
 
-        var chart = d3.select('#scatterplot')
-            .append('svg:svg')
-            .attr('width', width + margin.right + margin.left)
-            .attr('height', height + margin.top + margin.bottom)
-            .attr('class', 'chart');
+            function readfile(e1){  //An event handler function to be called when the input control 'changes'
+                var fileobj = e1.target.files[0];
+                var fr = new FileReader();
+                fr.readAsText(fileobj);
+                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+            } 
+           
+            $('.btn-file :file').on('fileselect', function(event) {
+                readfile(event);
+            });
+           
+            $('.btn-file :file').on('change', function() {
+                var input = $(this);
+                input.trigger('fileselect');
+            }); 
+            
+            /*Chart dimension and coordinates*/
+            //var margin = {top: 100, right: 50, bottom: 75, left: 50};
+            var margin = {top: 50, right: 50, bottom: 50, left: 50};
+            
+            var tickCount = 5;
 
-        var main = chart.append('g')
-            .attr('transform', 'translate (' + margin.left + ', ' + margin.top + ')')
-            .attr('width', width)
-            .attr('height', height)
-            .attr('class', 'main');     //create and configure the chart main area
+    $("#btnPlot").on('click', function(){
+            var txtwidth, txtheight;
 
-        var xAxis = d3.svg.axis().scale(x).orient('bottom');  //Create the X axis
+            var txtwidth = parseFloat($("#txtwidth").val());
+            var txtheight = parseFloat($("#txtheight").val());
 
-        main.append('g')
-            .attr('transform', 'translate (0, ' + height + ')') //Axis starting point, i.e., Bottom-Left Corner
-            .attr('class', 'main axis date')
-            .call(xAxis);   //Add the predefined X axis to the chart
+            var canvasW = isNaN(txtwidth)? 650: txtwidth;
+            var canvasH = isNaN(txtheight)? 650: txtheight;
+            var chartW = canvasW - margin.left - margin.right;
+            var toolboxH = 50, toolboxW = chartW;
+            var navW = chartW, navH = 100;
+            var chartH = canvasH - (margin.top + margin.bottom) - (navH + margin.bottom);
+            
+            var toolboxStartPoints = [margin.left, margin.top];
+            var chartStartPoints = [margin.left, toolboxStartPoints[1] + margin.top];
+            var navStartPoints = [margin.left, chartStartPoints[1] + chartH + margin.bottom];
+            
 
-        var yAxis = d3.svg.axis().scale(y).orient('left');    //Create the Y axis
+                d3.select('#tlbReset').style('opacity', 1);
+                d3.select('#tlbRemove').style('opacity', 1);
+                d3.select('#tlbExport').style('opacity', 1);
 
-        main.append('g')
-            .attr('transform', 'translate (0, 0)')  //Axis starting point, i.e., Top-Left Corner
-            .attr('class', 'main axis date')
-            .call(yAxis);   //Add the predefined Y axis to the chart
+                auxilaryFields = [].concat(fields);
+                var i = auxilaryFields.indexOf(xaxisName);
+                if(i != -1){    //Remove the field name that 'xaxisName' contains
+                    auxilaryFields.splice(i, 1);
+                }
+                i = auxilaryFields.indexOf(yaxisName);
+                if(i != -1){    //Remove the field name that 'yaxisName' contains
+                    auxilaryFields.splice(i, 1);
+                }
+                
+                var xMinMax = d3.extent(rawdata, function(d, i){ return d[xaxisName];});
+                var yMinMax = d3.extent(rawdata, function(d, i){ return d[yaxisName];});
+                var xMin = xMinMax[0], xMax = xMinMax[1], yMin = yMinMax[0], yMax = yMinMax[1];
+                var div = d3.select('#tooltipDiv');
+                var toolboxtipDiv = d3.select('#toolboxtipDiv');
+                
+                /*Clear before redrawing*/ 
+                d3.select('#d3Chart').html(''); 
+                
+                var canvas = d3.select('#d3Chart').append('svg')
+                                .attr('width', canvasW).attr('height', canvasH).append('g');
+                
+        /*################################## BEGIN TOOLBOX ####################################*/
+                
+                var toolboxg = canvas.append('foreignObject')
+                                        .attr('height', toolboxH).attr('width', toolboxW)
+                                        .attr('transform', function(){
+                                            //toolboxStartPoints[0] = toolboxStartPoints[0] + margin.left;
+                                            return 'translate(' + toolboxStartPoints.join(',') + ')';
+                                        });
+                var classes = "btn btn-default sm-btn glyphicon";
+                
+                var btnRemove = toolboxg.append('xhtml:button').attr('type', 'button')
+                             .attr('class', classes + ' glyphicon-remove-circle');
+                var btnRest = toolboxg.append('xhtml:button').attr('type', 'button')
+                             .attr('class', classes + ' glyphicon-refresh');
+                var btnExport = toolboxg.append('xhtml:button').attr('type', 'button')
+                             .attr('class', classes + ' glyphicon-export');
+                
+                /*var btnExport2 = toolboxg.append('xhtml:button').attr('type', 'button')
+                             .attr('class', 'btn btn-default sm-btn')
+                             .append('xhtml:span').attr('class', 'glyphicon glyphicon-export');*/
+                
+                
+                btnRemove.on('click', function(){
+                    var mainBrushedPs = chartPoints.filter(function(){return d3.select(this).classed('selected');});
 
-        var g = main.append('svg:g');
-        g.selectAll('scatterplot')  //Create the data points as a svg circle on the chart
-            .data(yFemaleLE)
-            .enter().append('svg:circle')
-            .attr('cy', function(d){return y(d);})
-            .attr('cx', function(d, i){return x(xMaleLE[i]);})
-            .attr('r', function(d, i){return r(rMedianIncome[i]); })
-            .style('fill', function(d, i){return cCountry[i];});
+                    mainBrushedPs.classed('hidden', true);
+                    mainBrushedPs.each(function(d, i){
+                        pointMap[d.lineNo]['nav'].classed('hidden', true);
+                    });
+                    
+                    $("#statDiv").empty();  //Clear statistics div 
+                    mainChart.select('.brush').call(chartBrush.clear());    //Clear main chart brush
+                })
+                 .on('mouseover', function(){toolboxtip(d3.event, 'Hide brushed');})
+                 .on('mouseout', function(){toolboxtipDiv.style('opacity', 0);});
+                
+                btnRest.on('click', function(){
+                    Object.keys(pointMap).forEach(function(key, i){
+                        pointMap[key]['main'].classed('hidden', false);
+                        pointMap[key]['nav'].classed('hidden', false);
+                        pointMap[key]['main'].classed('selected', false);
+                        //pointMap[key][1].classed('selected', false);
+                    });
+                })
+                 .on('mouseover', function(){toolboxtip(d3.event, 'Reset hidden');})
+                 .on('mouseout', function(){toolboxtipDiv.style('opacity', 0);});
 
-        g.selectAll('scatterplot')
-            .data(yFemaleLE)
-            .enter().append('text')
-            .attr('y', function(d){return y(d); })
-            .attr('x', function(d, i){return x(xMaleLE[i]);})
-            .attr('dx', function(d, i){return -r(rMedianIncome[i]);})
-            .text(function(d, i){return tCountry[i];});
+                btnExport.on('click', function(){
+                    var visibleData = [];
+                    chartPoints.each(function(d, i){
+                        if(!d3.select(this).classed('hidden'))
+                            visibleData.push(d);
+                    });
 
+                    window.open('data:text/csv; charset=utf-8,' + escape(csvDictWriter(visibleData, delim)));
+                })
+                 .on('mouseover', function(){toolboxtip(d3.event, 'Export current chart');})
+                 .on('mouseout', function(){toolboxtipDiv.style('opacity', 0);});
+                
+
+        /*################################## END TOOLBOX ####################################*/
+        
+        /*################################## BEGIN MAIN CHART ####################################*/
+
+                var mainChart = canvas.append('g').attr('width', chartW).attr('height', chartH)
+                    .attr('transform', function(){
+                        return 'translate(' + chartStartPoints.join(',') + ')';
+                    });
+
+                /*Main chart x axis scale */
+                var xScale = d3.scale.linear().domain(xMinMax).range([0, chartW]).nice();
+                var xAxis = d3.svg.axis().scale(xScale).orient('bottom').ticks(tickCount)
+                
+                /*Main chart y axis scale */
+                var yScale = d3.scale.linear().domain(yMinMax).range([chartH, 0]).nice();
+                var yAxis = d3.svg.axis().scale(yScale).orient('left').ticks(tickCount)
+
+                /*Add xAxis*/
+                mainChart.append('g').attr('transform', 'translate(0, ' + chartH + ')')
+                    .attr('class', 'x axis').call(xAxis);
+
+                /*Add xAxis Label*/
+                mainChart.append('text').attr('x', chartW/2).attr('y', chartH + margin.bottom/2)
+                    .style('text-anchor', 'middle').text(xaxisName);
+
+                /*Add yAxis*/
+                mainChart.append('g').attr('class', 'y axis').call(yAxis);
+
+                /*Add yAxis Label*/
+                mainChart.append('text').attr('transform', 'rotate(-90)')
+                    .attr('x', 0 - chartH/2).attr('y', 0 - margin.left)
+                    .style('text-anchor', 'middle').attr('dy', '2em').text(yaxisName);
+
+                /*Add vertical grid lines*/
+                mainChart.append('g').attr('class', 'grid')
+                    .attr('transform', 'translate(0, ' + chartH + ')')
+                    .call(make_vLines(tickCount, xScale).tickSize(-chartH, 0, 0).tickFormat(''));
+
+                /*Add horizontal grid lines*/
+                mainChart.append('g').attr('class', 'grid')
+                    .call(make_hLines(tickCount, yScale).tickSize(-chartW, 0, 0).tickFormat(''));
+
+                var title = xaxisName + ' vs ' + yaxisName;
+                
+                /*Chart title*/
+                mainChart.append('text').attr('x', chartW/2).attr('y', 0 - margin.top / 2)
+                    .style('text-anchor', 'middle').style('text-font', '16px').text(title);
+    
+                /*Create a brush behaviour to be used on the main chart*/
+                var chartBrush = d3.svg.brush().x(xScale).y(yScale).on('brushstart', chartBrushStart)
+                    .on("brush", chartBrushMov).on("brushend", chartBrushEnd);
+                
+                /*Attach a brush behaviour on the main chart */
+                var chartBrushHandle = mainChart.append("g").attr("class", "brush").call(chartBrush);
+
+                /*Select all the data points and join the data*/
+                var chartPoints = mainChart.selectAll('circle').data(rawdata).enter().append('circle')
+                    .attr("transform", function(d, i){ 
+                        return "translate (" + xScale(d[xaxisName]) + ", " + yScale(d[yaxisName]) + ")"
+                    }).attr('r', 4)
+                    .on('click', function(d, i){onSelected(d3.select(this), d, i);})
+                    .on('mouseover', function(d, i){drawToolTip(d);})
+                    .on('mouseout', function(d, i){emptyToolTip();});
+
+                
+                /*Attach a class attribute to the main chart */
+                mainChart.classed('chart', true);
+                
+        /*################################## END MAIN CHART ####################################*/
+        
+        /*################################## BEGIN NAVIGATOR CHART ####################################*/
+                
+                /*navigator xAxis scale*/
+                var navXScale = d3.scale.linear().domain([xMin, xMax]).range([0, navW]);
+
+                /*navigator yAxis scale*/
+                var navYScale = d3.scale.linear().domain([yMin, yMax]).range([navH,  0]);
+                
+                /*Chart for the navigator*/
+                
+                var navChart = canvas.append("g").attr("transform", function(){
+                                            return "translate(" + navStartPoints.join(',') + ")";
+                                }).attr("width", navW).attr("height", navH);
+                
+                var navPoints = navChart.selectAll("circle")
+                    .data(rawdata).enter().append("circle")
+                    .attr("transform", function(d, i){ 
+                                    return "translate(" + navXScale(d[xaxisName]) + "," 
+                                            + navYScale(d[yaxisName]) + ")"; 
+                    }).attr("r", 2);
+
+                var navBrush = d3.svg.brush().x(navXScale).y(navYScale).extent([[xMin, yMin], [xMax, yMax]])
+                    .on("brushstart", navBrushStart).on("brush", navBrushMove).on("brushend", navBrushEnd);
+
+                var navBrushHandle = navChart.append("g").attr("class", "brush").call(navBrush);
+
+        /*################################## END NAVIGATOR CHART ####################################*/
+                
+                chartBrushStart(); 
+                navBrushStart();
+                navBrushMove();
+                
+                var pointMap = {};  /*A mapping of line number with the corresponding chart points in both charts*/
+
+                chartPoints.each(function(d, i){
+                    pointMap[d.lineNo] = {'main':d3.select(this), 'nav': d3.select(navPoints[0][i])};
+                });
+
+                function toolboxtip(e, msg){
+                    toolboxtipDiv.transition().duration(200).style('opacity', 0.9);
+                    toolboxtipDiv.text(msg);
+                    toolboxtipDiv.style('left', e.pageX+'px').style('top', (e.pageY + 10) + 'px');
+                }
+                function onSelected(circle, d, i){
+                    //circle.classed('hidden', true);
+                    pointMap[d.lineNo]['main'].classed('hidden', true);
+                    pointMap[d.lineNo]['nav'].classed('hidden', true);
+                }
+                
+                function inRange(x, arg1, arg2){ 
+                    var min, max;
+                    if(arg1 < arg2){ min = arg1; max = arg2; }
+                    else{ min = arg2; max = arg1;}
+                
+                    return min <= x && x <= max
+                }
+
+                function navBrushStart() {
+                    navChart.classed("chart", true);
+                    $("#statDiv").empty();  //Clear the table before redraw
+                    chartPoints.classed("selected", false);
+                    mainChart.select('.brush').call(chartBrush.clear());    //clear main chart brush
+                }
+
+                function navBrushMove() {
+                    var s = navBrush.extent();
+                    navPoints.classed("selected", function(d) { 
+                    var x0 = s[0][0], y0 = s[0][1],
+                        x1 = s[1][0], y1 = s[1][1];
+                    
+                        var x = inRange(d[xaxisName], x0, x1); 
+                        var y = inRange(d[yaxisName], y0, y1); 
+                        return x && y;
+                    });
+                }
+
+                function navBrushEnd() {
+                    navChart.classed("chart", !d3.event.target.empty());
+                    var navSelectedData = [];
+                    /*if(navBrush.empty()){
+                        navChart.classed("chart", true);
+                        navPoints.classed("selected", true);
+                        navBrush.extent([xMin, Max]);
+                    }*/
+
+                    var s = navBrush.extent();
+                    
+                    var x0 = s[0][0], y0 = s[0][1],
+                        x1 = s[1][0], y1 = s[1][1];
+                    
+                    /*Resize the main chart's x axis to the width of the selected navbar*/
+                    xScale.domain([x0, x1]);
+                    mainChart.selectAll('.x.axis').call(xAxis);
+                   
+                    /*Resize the main chart's y axis to the height of the selected navbar*/
+                    yScale.domain([y0, y1]);
+                    mainChart.selectAll('.y.axis').call(yAxis);
+                    
+                    var selectedNavPoints = navPoints.filter(function(){return d3.select(this).classed('selected');});
+                    selectedNavPoints.each(function(d, i){
+                        navSelectedData.push(d);
+                    });
+
+                    /*Remove previous points from the main chart before redrawing*/
+                    mainChart.selectAll('circle').remove();
+                    chartPoints = mainChart.selectAll("circle").data(navSelectedData).enter().append("circle")
+                        .attr("transform", function(d, i){ 
+                                return "translate(" + xScale(d[xaxisName]) + "," + yScale(d[yaxisName]) + ")"; 
+                    }).attr("r", 4)
+                    .classed('hidden', function(d, i){return d3.select(selectedNavPoints[0][i]).classed('hidden');})
+                    .on('click', function(d, i){onSelected(d3.select(this), d, i)})
+                    .on('mouseover', function(d, i){drawToolTip(d);})
+                    .on('mouseout', function(d, i){emptyToolTip();});
+
+                    pointMap = {};
+                    chartPoints.each(function(d, i){    //Reflect the new points in the mapping as well
+                        pointMap[d.lineNo] = {'main':d3.select(this), 'nav': d3.select(selectedNavPoints[0][i])};
+                    });
+                }
+
+                var chartSelectedData = [];
+                function chartBrushStart(){
+                    mainChart.classed("chart", true);
+                    chartSelectedData = [];
+                }
+                function chartBrushMov(){
+                    var extent = chartBrush.extent();
+                    var x0 = extent[0][0], y0 = extent[0][1],
+                        x1 = extent[1][0], y1 = extent[1][1];
+                    chartPoints.classed("selected", function(d) { 
+                        var x = inRange(d[xaxisName], x0, x1); 
+                        var y = inRange(d[yaxisName], y0, y1); 
+                        var isSelected  = x && y;
+                    
+                        return isSelected;
+                    });
+                }
+                
+                function chartBrushEnd(){
+                        var partialData = {};
+                        
+                        partialData[xaxisName] = [];
+                        partialData[yaxisName] = [];
+                        d3.select("#statDiv").html(''); 
+                        
+                        var extent = chartBrush.extent();
+                        var x0 = extent[0][0], y0 = extent[0][1],
+                            x1 = extent[1][0], y1 = extent[1][1];
+                        
+                        var chartSelectedPoints = chartPoints.filter(function(){
+                            var p = d3.select(this);
+                            /*If the point is 'selected' and not 'hidden'*/
+                            return p.classed('selected') && !p.classed('hidden');
+                        });
+                        chartSelectedPoints.each(function(d, i){
+                            for(key in partialData)
+                                partialData[key].push(d[key]);
+                        });
+                        
+                        var count = partialData[xaxisName].length;
+                        if(count !== 0){ 
+                            var html = '<table>' 
+                                + '<thead>' 
+                                + '<tr><th></th>'
+                                + '<th>' + xaxisName + '</th><th>' + yaxisName + '</th>'
+                                + '</thead>'  
+                                + '<tfoot><tr>'
+                                + '<th colspan="0">Selection Size: ' + count + ' out of ' + rawdata.length + '</th></tr>'
+                                + '</tfoot>' 
+                                + '<tbody></tbody>';
+                            
+                            $("#statDiv").empty();  //Clear the table before redraw
+                            $("#statDiv").append(html);
+                            $.each(getStat, function(name, f){
+                                var html = '<tr><th align="right">' + name + ' </th>' 
+                                $.each(partialData, function(key, value){
+                                    html += '<td>' + f(value).toFixed(3) + '</td>';
+                                });
+                                html += '</tr>'
+                                lastRow = $("#statDiv table tbody").append(html);
+                            });
+                        }
+                }
+
+                var getStat = {
+                    "Minimum":min,  "Maximum": max, "Mean": mean,
+                    "Variance":variance, "Std. dev.": standardDeviation
+                };
+                function emptyToolTip(){
+                        div.transition()
+                            .duration(100)
+                            .style('opacity', 0);
+                }
+                
+                function drawToolTip(d){
+                    /*Fields listed row-wise*/
+                        html = '<table><tbody>';
+                        fields.forEach(function(field, idx){
+                            var v = d[field];
+                            html += '<tr><th>' + field + '</th><td>' + trim(v, 3) +'</td></tr>';
+                        });
+                        html += '</tbody></table>'; 
+                        div.transition().duration(100).style('opacity', 0.8);
+                        div.html(html);
+                }
+                /*function drawToolTip(d){
+                    //Fields listed column-wise
+                        html = '<table><tbody><tr>';
+                        $.each(fields, function(idx, value){    //Fill header
+                            html += '<th>' + value + '</th>';
+                        });
+                        html += "</tr><tr>";
+                        fields.forEach(function(field, idx){
+                            var v = d[field];
+                            html += '<td>' + trim(v, 3) +'</td>';
+                        });
+                        html += '</tr></tbody></table>'; 
+                        div.transition().duration(100).style('opacity', 0.8);
+                        div.html(html);
+                }*/
+                
+            });
+            }());
+        });
     </script>
+</body>
+</html>

@@ -2,58 +2,24 @@
 <html>
     <head>
         <meta charset="utf-8">
+       
+       <!--
+            ################## REMOTE RESOURCES ####################
         <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
         <script src="http://d3js.org/d3.v3.min.js"></script>
-<style>        
-svg {
-  font: 10px sans-serif;
-  padding: 10px;
-}
-
-.axis,
-.frame {
-  shape-rendering: crispEdges;
-}
-
-.axis line {
-  stroke: #ddd;
-}
-
-.axis path {
-  display: none;
-}
-
-.frame {
-  fill: none;
-  stroke: #aaa;
-}
-
-circle {
-  fill-opacity: .7;
-}
-
-circle.hidden {
-  fill: #ccc !important;
-}
-
-.extent {
-  fill: #000;
-  fill-opacity: .125;
-  stroke: #fff;
-}
-</style>
-        <!--<link rel="stylesheet" href="../css/scattermatrix.css" />-->
-
-
-        <script src="http://d3js.org/d3.v3.min.js"></script>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
-        <script src="../js/util.js" type="text/javascript"></script>
-        <!--<script src='http://www.macwright.org/simple-statistics/simple_statistics.js' type="text/javascript"></script>-->
-        <script src='simple-statistics/index.js' type="text/javascript"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>-->
+       
+            <!-- ############## LOCAL RESOURCES  ############### -->
+        <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>
+        <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="../js/d3.v3.min.js"></script>
+        <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
+        
+        <script type="text/javascript" src="../js/util.js"></script>
+        <link rel="stylesheet" href="../css/scattermatrix.css" />
     </head>
     <body>
-        
         <div class="container">
             <div class = "row">
                 <div class="col-md-3"> </div>
@@ -74,7 +40,7 @@ circle.hidden {
                                 Browse <input id="filebrowsed" type="file" disabled>
                             </span>
                         </div>
-                        <div id="fieldsDiv" class="form-group" style="width:200px;">
+                        <div id="fieldsDiv" class="form-group" style="max-width:300px;">
                         </div>
                         <div class="form-group">        
                             <button id="btnPlot" type="submit" class="btn btn-default" disabled>Plot</button>
@@ -115,31 +81,20 @@ circle.hidden {
             
             function readerHandler(e2){
                 fileContent = e2.target.result;
-                rawdata = dictReader(fileContent, delim);
-                fields = rawdata.keys;
-                        d3.select("#fieldsDiv").html(''); 
-                        d3.select("#fieldsDiv").selectAll('label')
-                            .data(fields).enter()
-                            .append('label').attr("class", "checkbox-inline")
-                            .html(function(d){
-                                var html = '<input type="checkbox" value="' + d + '">' + d;
-                                return html;
-                            });
-                $("#xaxisName").empty();    //Clear the dropdown boxes before refilling
-                //d3.select("#xaxisName").empty()
-                $("#yaxisName").empty();
-                $.each(fields, function(idx, fieldName){    //fill the drop down box
-                    $("#xaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
-                    $("#yaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
-                    $("#btnPlot").prop('disabled', false);
-                });
-
-                $("#xaxisName li").on('click', function(event){
-                    xaxisName = this.textContent;
-                });
-                $("#yaxisName li").on('click', function(event){
-                    yaxisName = this.textContent;
-                });
+                rawdata = csvDictReader(fileContent, delim);
+                fields = Object.keys(rawdata[0]);
+                
+                /*Populate checkboxes with fields names */
+                d3.select("#fieldsDiv").html(''); 
+                d3.select("#fieldsDiv").selectAll('label')
+                    .data(fields).enter()
+                    .append('label').attr("class", "checkbox-inline")
+                    .html(function(d){
+                        var html = '<input type="checkbox" value="' + d + '">' + d;
+                        return html;
+                    });
+        
+                $("#btnPlot").prop('disabled', false);
             }
            
             function readfile(e1){  //An event handler function to be called when the input control 'changes'
@@ -148,7 +103,7 @@ circle.hidden {
                 fr.readAsText(fileobj);
                 fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
             } 
-            
+          
             $('.btn-file :file').on('fileselect', function(event) {
                 readfile(event);
             });
@@ -157,103 +112,107 @@ circle.hidden {
                 var input = $(this);
                 input.trigger('fileselect');
             }); 
-            
+            d3.selectAll('input').on('input', function(){
+                console.log(this);
+            });
             $("#btnPlot").on('click', function(){
-                      var checked = d3.selectAll('input').filter(function(){
-                        var box = d3.select(this);
-                        if(box.property('checked')){ 
-                            return box.value; 
+                    var checkedFields = [];
+                    d3.selectAll('input').each(function(){
+                        var checkbox = d3.select(this);
+                        if(checkbox.property("checked")){
+                            var value = checkbox.property("value");
+                            checkedFields.push(value);
                         }
-                        return false;
-                        });
-                        console.log(checked);
-                        fieldCount = fields.length;
-                        fields.forEach(function(field) {//The minimum and maximum values corresponding to a field
-                            domainByField[field] = d3.extent(rawdata[field]);
-                        });
-                        
-                        xAxis.tickSize(size * fieldCount);
-                        yAxis.tickSize(-size * fieldCount);
-                        
-                        var points = rawdata[xaxisName].map(function(value, i){return [value, rawdata[yaxisName]]});
-                        console.log(points); 
-                        var brush = d3.svg.brush().x(xScale).y(yScale)
-                        .on("brushstart", brushstart).on("brush", brushmove).on("brushend", brushend);
+                    });
 
-                        var svg = d3.select("#d3Chart").append("svg")
+                    fieldCount = checkedFields.length;
+                    checkedFields.forEach(function(field) {//The minimum and maximum values corresponding to a field
+                        domainByField[field] = d3.extent(rawdata, function(d){
+                            return d[field];
+                        });
+                    });
+                    xAxis.tickSize(size * fieldCount);
+                    yAxis.tickSize(-size * fieldCount);
+
+                    d3.select("svg").remove();
+                    var svg = d3.select("#d3Chart").append("svg")
                         .attr("width", size * fieldCount + padding).attr("height", size * fieldCount + padding)
                         .append("g").attr("transform", "translate(" + padding + "," + padding / 2 + ")");
 
-                        svg.selectAll(".x.axis").data(fields).enter().append("g").attr("class", "x axis")
-                            .attr("transform", function(d, i) { return "translate(" + (fieldCount - i - 1) * size + ",0)"; })
-                            .each(function(d) { xScale.domain(domainByField[d]); d3.select(this).call(xAxis); });
+                    svg.selectAll(".x.axis").data(checkedFields).enter().append("g").attr("class", "x axis")
+                        .attr("transform", function(d, i) { return "translate(" + (fieldCount - i - 1) * size + ",0)"; })
+                        .each(function(d) { xScale.domain(domainByField[d]); d3.select(this).call(xAxis); });
 
-                        svg.selectAll(".y.axis").data(fields).enter().append("g").attr("class", "y axis")
-                            .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
-                            .each(function(d) { yScale.domain(domainByField[d]); d3.select(this).call(yAxis); });
+                    svg.selectAll(".y.axis").data(checkedFields).enter().append("g").attr("class", "y axis")
+                        .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
+                        .each(function(d) { yScale.domain(domainByField[d]); d3.select(this).call(yAxis); });
 
-                        var cell = svg.selectAll(".cell").data(cartesian(fields, fields)).enter().append("g").attr("class", "cell")
-                            .attr("transform", function(d) { 
+                    var cell = svg.selectAll(".cell").data(cartesian(checkedFields, checkedFields))
+                             .enter().append("g").attr("class", "cell")
+                             .attr("transform", function(d) { 
                                 return "translate(" + (fieldCount - d.i - 1) * size + "," + d.j * size + ")"; 
-                            })
-                            .each(plot);
+                                }).each(plot);
+                    svg.classed('chart', true);
+                    // Titles for the diagonal.
+                    cell.filter(function(d) { return d.i === d.j; }).append("text")
+                        .attr("x", padding).attr("y", padding).attr("dy", ".71em").text(function(d) { return d.x; });
 
-                        // Titles for the diagonal.
-                        cell.filter(function(d) { return d.i === d.j; }).append("text")
-                            .attr("x", padding).attr("y", padding).attr("dy", ".71em").text(function(d) { return d.xScale; });
+                    var brush = d3.svg.brush().x(xScale).y(yScale)
+                        .on("brushstart", brushstart).on("brush", brushmove).on("brushend", brushend);
+                    cell.call(brush);
 
-                        cell.call(brush);
+                    function plot(selectorData) {
+                        var cell = d3.select(this);
 
-                        function plot(selectorData) {
-                            var cell = d3.select(this);
+                        xScale.domain(domainByField[selectorData.x]);
+                        yScale.domain(domainByField[selectorData.y]);
 
-                            xScale.domain(domainByField[selectorData.x]);
-                            yScale.domain(domainByField[selectorData.y]);
+                        cell.append("rect").attr("class", "frame").attr("x", padding / 2)
+                            .attr("y", padding / 2).attr("width", size - padding).attr("height", size - padding);
 
-                            cell.append("rect").attr("class", "frame").attr("x", padding / 2)
-                                .attr("y", padding / 2).attr("width", size - padding).attr("height", size - padding);
+                        cell.selectAll("circle").data(rawdata).enter().append("circle")
+                            .attr("cx", function(d) { return xScale(d[selectorData.x]); })
+                            .attr("cy", function(d) { return yScale(d[selectorData.y]); })
+                            .attr("r", 3).style("fill", "#ccc"); 
+                    }
 
-                            cell.selectAll("circle").data(rawdata).enter().append("circle")
-                                .attr("cx", function(d) { return xScale(d[selectorData.x]); })
-                                .attr("cy", function(d) { return yScale(d[selectorData.y]); })
-                                .attr("r", 3) .style("fill", function(d) { return color(d.species); });
+                    var brushCell;
+
+                    // Clear the previously-active brush, if any.
+                    function brushstart(p) {
+                        if (brushCell !== this) {
+                            d3.select(brushCell).call(brush.clear());
+                            xScale.domain(domainByField[p.x]);
+                            yScale.domain(domainByField[p.y]);
+                            brushCell = this;
                         }
+                    }
 
-                        var brushCell;
+                    // Highlight the selected circles.
+                    function brushmove(p) {
+                        var e = brush.extent();
+                        svg.selectAll("circle").classed("selected", function(d) {
+                                var is_brushed = e[0][0] > d[p.x] || d[p.x] > e[1][0]
+                                || e[0][1] > d[p.y] || d[p.y] > e[1][1];
+                                return !is_brushed;
+                                });
+                    }
 
-                        // Clear the previously-active brush, if any.
-                        function brushstart(p) {
-                            if (brushCell !== this) {
-                                d3.select(brushCell).call(brush.clear());
-                                xScale.domain(domainByField[p.x]);
-                                yScale.domain(domainByField[p.y]);
-                                brushCell = this;
-                            }
-                        }
+                    // If the brush is empty, select all circles.
+                    function brushend() {
+                        if (brush.empty()) svg.selectAll(".selected").classed("selected", false);
+                    }
 
-                        // Highlight the selected circles.
-                        function brushmove(p) {
-                            var e = brush.extent();
-                            svg.selectAll("circle").classed("hidden", function(d) {
-                                    return e[0][0] > d[p.x] || d[p.x] > e[1][0]
-                                    || e[0][1] > d[p.y] || d[p.y] > e[1][1];
-                                    });
-                        }
+                    function cartesian(field1, field2) {
+                        //both parameters are assumed as arrays of strings
+                        var c = [], n = field1.length, m = field2.length, i, j;
+                        for (i = 0; i < n; i++) 
+                            for (j = 0; j < m; j++) 
+                                c.push({x: field1[i], i: i, y: field2[j], j: j});
+                        return c;
+                    }
+                    d3.select(self.frameElement).style("height", size * fieldCount + padding + 20 + "px");
 
-                        // If the brush is empty, select all circles.
-                        function brushend() {
-                            if (brush.empty()) svg.selectAll(".hidden").classed("hidden", false);
-                        }
-
-                        function cartesian(field1, field2) {
-                            //both parameters are assumed as arrays of strings
-                            var c = [], n = field1.length, m = field2.length, i, j;
-                            for (i = 0; i < n; i++) 
-                                for (j = 0; j < m; j++) 
-                                    c.push({x: field1[i], i: i, y: field2[j], j: j});
-                            return c;
-                        }
-                        d3.select(self.frameElement).style("height", size * fieldCount + padding + 20 + "px");
                 });
             });
         </script>

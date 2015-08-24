@@ -1,3 +1,23 @@
+function clone(obj){
+    /*Return a copy of 'obj'*/
+    var result = {};
+    Object.keys(obj).map(function(key){result[key] = copyValue(obj[key]);});
+    return result;
+}
+function copyValue(value){
+    /*Return a copy of 'value'
+        'value' be different types supported
+    */
+    var primitives = ['string', 'number', 'undefined', 'boolean', 'function'];
+    if(primitives.indexOf(typeof value) != -1){
+        return value;
+    }
+    if(Array.isArray(value))
+        return value.map(function(current){return copyValue(current);});
+    if(typeof value === 'object')
+        return clone(value);
+}
+
 var Dictionary = function (keys){
       var dict = this;
       dict.keyCount = keys.length;
@@ -40,19 +60,47 @@ function dict(keys, values){
         d[keys[i]] = parseFloat(value);
     });
 }
-function csvDictReader(fileContent, delim){
-        var fields, result = [];
+function csvDictReader(fileContent, delim, header){
+        var fields, currentValues, result = [];
         var lines = fileContent.split('\n');
         lines.forEach(function(line, idx){
-            if(idx == 0){   //The first row always contains the fields
-                    fields = line.trim().split(delim);
-                    return;
+            if(idx == 0){ 
+                    var firstRow = line.trim().split(delim);
+                    fields = ['lineNo'];
+                    if(header){  //If the first row is treated as a header
+                        fields = fields.concat(firstRow);
+                        return; //In effect, continue to the next iteration
+                    }
+                    fields = fields.concat(firstRow.map(function(value, i){return "x"+i;}));
+                    idx = idx+1;    //to enforce 'lineNo' to start from 1
             }
-            values = line.trim().split(delim);
-            if(values.length === fields.length)
-                result.push(new dict(fields, values));
+
+            currentValues = line.trim().split(delim);
+            currentValues = [idx].concat(currentValues);
+
+            if(currentValues.length === fields.length)
+                result.push(new dict(fields, currentValues));
         });
         return result;  //An array of objects
+}
+function csvDictWriter(dictArray, delim){
+    /*Takes an array of objects and returns a string where the 
+     * each object's values are concatenated by 'delim' which in turn 
+     * are concatenated by the newline character '\n'
+     * */
+    var row, rows;
+    var fields = Object.keys(dictArray[0]);
+    rows = fields.join(delim) + '\n'; 
+    dictArray.forEach(function(obj, i){
+        row = [];
+        fields.forEach(function(field){
+            row.push(obj[field]);
+        });
+
+        rows += row.join(delim) + '\n';
+    });
+
+    return rows;
 }
 
 function max(x) {
@@ -123,4 +171,10 @@ function sum(x) {
         value += x[i];
     }
     return value;
+}
+
+function trim(num, dPoints){
+    /* if 'num' has decimal points, trim upto 'dPoints'*/
+    var p = (num.toString().split('.')[1] || []).length;
+    return (p > dPoints)?parseFloat(num.toFixed(dPoints)):num;
 }

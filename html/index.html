@@ -11,7 +11,7 @@
         .frame { fill: none; stroke: #aaa; }
         circle { fill-opacity: .7; }
         circle.hidden { fill: #ccc !important; }
-        .extent { fill: #000; fill-opacity: .125; stroke: #fff; }
+        .extent { fill: #000; fill-opacity: .125; stroke: #fff; } 
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
 </head>
@@ -63,7 +63,7 @@ d3.csv("flowers.csv", function(error, data) {
 
   var brush = d3.svg.brush().x(x).y(y).on("brushstart", brushstart).on("brush", brushmove).on("brushend", brushend);
   cell.call(brush);     //The brush is attached to each cell
-
+    console.log(cell);
   function plot(p) {
     var cell = d3.select(this);
     x.domain(domainByTrait[p.x]);
@@ -81,8 +81,6 @@ d3.csv("flowers.csv", function(error, data) {
 
   // Clear the previously-active brush, if any.
   function brushstart(p) {
-      console.log(this);
-      console.log(brushCell);
     if (brushCell !== this) {
       d3.select(brushCell).call(brush.clear());     //Clear whereever the previous brush is pointing
       x.domain(domainByTrait[p.x]);
