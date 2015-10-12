@@ -1,3 +1,4 @@
+//use strict;
 function clone(obj){
     /*Return a copy of 'obj'*/
     var result = {};
@@ -74,15 +75,74 @@ function csvDictReader(fileContent, delim, header){
                     fields = fields.concat(firstRow.map(function(value, i){return "x"+i;}));
                     idx = idx+1;    //to enforce 'lineNo' to start from 1
             }
-
             currentValues = line.trim().split(delim);
             currentValues = [idx].concat(currentValues);
-
-            if(currentValues.length === fields.length)
+            if(currentValues.length === fields.length){
                 result.push(new dict(fields, currentValues));
+            }
         });
         return result;  //An array of objects
 }
+function AtoO(input){
+    /*Convert an array of object literals into an object of array values
+        e.g input = [{k1: a, k2:b}, {k1:e, k2:f}]
+            output = {k1:[a,e], k2:[b,f]}
+    */
+
+    var keys = Object.keys(input[0]);
+    var output = {};
+    keys.forEach(function(key){//Initialize the output
+        output[key] = [];
+    })
+    input.map(function(value){
+        keys.forEach(function(key){
+            output[key].push(value[key])
+        });
+    })
+
+    return output;
+}
+function getHexPoints(AofO, cols){
+    var output = AofO.map(function(entry, i){
+        return cols.map(function(col){
+            return entry[col];
+        });
+    });
+    return output;
+}
+function OtoA(input){
+    /*The function does the opposite of AtoO*/
+    var keys = Object.keys(input);
+    var output = [];
+    var entry = {};
+    input[keys[0]].forEach(function(value, i){
+        keys.forEach(function(key){
+            entry[key] = input[keys[key]][i];
+        })
+        output.push(entry)
+    })
+
+    return output;
+}
+
+/*function readColumns(data, delim){
+    var lines = data.split('\n'); 
+    var columns = lines[0].trim().split(delim);
+
+    var output = {};
+    columns.forEach(function(col, i){
+        output[col] = [];
+    })
+    var row;
+    for(i = 1; i < lines.length; i++){
+        currentLine = lines[i].trim().split(delim);
+        columns.forEach(function(col, j){
+            output[col].push(currentLine[j])
+        });
+    }
+    return output;   
+}
+*/
 function csvDictWriter(dictArray, delim){
     /*Takes an array of objects and returns a string where the 
      * each object's values are concatenated by 'delim' which in turn 

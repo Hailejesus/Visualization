@@ -1,0 +1,53 @@
+<html>
+    <head>
+        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+        <meta content="utf-8" http-equiv="encoding">
+
+            <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>
+            <script type="text/javascript" src="../js/jquery-ui-1.11.4/jquery-ui.js"></script>
+            <link rel="stylesheet" href="../js/jquery-ui-1.11.4/jquery-ui.css"></script>
+            <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>    
+            <script type="text/javascript" src="../js/OOPd3.js"></script>    
+
+    </head>
+    <body>
+        <div>
+            <h3>Scatter Plot</h3>
+            <div id="chart"></div>
+        </div>
+        <script type="text/javascript">
+            $(document).ready(function(event){
+                (function(){
+                    function brushStart(){};
+                    function brushMove(){};
+                    function brushEnd(){console.log(this.chartBrush.extent());};
+
+                    var data = []; 
+                    for(i = 10; i <= 20; i++){
+                        data.push([i, Math.floor(i*Math.log(i))]);
+                    }
+                    var options = {
+                        'renderTo': '#chart',
+                        'chart': {
+                            'width': 400, 
+                            'height': 400,
+                            'margin': 50, 
+                            'brush':{
+                                'start': brushStart,
+                                'move': brushMove,
+                                'end': brushEnd
+                            }
+                            },
+                        'series': {
+                            'data': data,
+                        }
+                    };
+
+                    var plot = new ScatterPlot(options);
+                    plot.draw();
+
+                    })();
+                });
+        </script>
+    </body>
+</html>
