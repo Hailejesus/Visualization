@@ -57,8 +57,10 @@ function dictReader(fileContent, delim, fields){
 }
 function dict(keys, values){
     var d = this;
+    var v;
     values.forEach(function(value, i){
-        d[keys[i]] = parseFloat(value);
+        v = +value;
+        d[keys[i]] = isNaN(v)? value: v;
     });
 }
 function csvDictReader(fileContent, delim, header){
@@ -78,7 +80,7 @@ function csvDictReader(fileContent, delim, header){
             currentValues = line.trim().split(delim);
             currentValues = [idx].concat(currentValues);
             if(currentValues.length === fields.length){
-                result.push(new dict(fields, currentValues));
+                result.push(new dict(fields, currentValues));                
             }
         });
         return result;  //An array of objects

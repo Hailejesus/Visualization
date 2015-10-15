@@ -98,29 +98,29 @@
             });
             
             function readerHandler(e2){
-                fileContent = e2.target.result;
-                //rawdata = dictReader(fileContent, delim);
-                //var headerFlag = d3.select('#headerFlag').property("checked");
-                var headerFlag = true;
-                
-                rawdata = csvDictReader(fileContent, delim, headerFlag);
-                originalData = rawdata.map(function(row){return clone(row);});
-                console.log(rawdata[0], rawdata[1]);
-                fields = Object.keys(rawdata[0]);
-                $("#xaxisName").empty();    //Clear the dropdown boxes before refilling
-                $("#yaxisName").empty();
-                $.each(fields, function(idx, fieldName){    //fill the drop down box
-                    $("#xaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
-                    $("#yaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
-                    $("#btnPlot").prop('disabled', false);
-                });
+            fileContent = e2.target.result;
+            //rawdata = dictReader(fileContent, delim);
+            //var headerFlag = d3.select('#headerFlag').property("checked");
+            var headerFlag = true;
+            
+            rawdata = csvDictReader(fileContent, delim, headerFlag);
+            originalData = rawdata.map(function(row){return clone(row);});
+            console.log(rawdata[0], rawdata[1]);
+            fields = Object.keys(rawdata[0]);
+            $("#xaxisName").empty();    //Clear the dropdown boxes before refilling
+            $("#yaxisName").empty();
+            $.each(fields, function(idx, fieldName){    //fill the drop down box
+                $("#xaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
+                $("#yaxisName").append('<li><a href="#">' + fieldName + '</a></li>');
+                $("#btnPlot").prop('disabled', false);
+            });
 
-                $("#xaxisName li").on('click', function(event){
-                    xaxisName = this.textContent;
-                });
-                $("#yaxisName li").on('click', function(event){
-                    yaxisName = this.textContent;
-                });
+            $("#xaxisName li").on('click', function(event){
+                xaxisName = this.textContent;
+            });
+            $("#yaxisName li").on('click', function(event){
+                yaxisName = this.textContent;
+            });
             }
            
             function make_vLines(tickCount, xScale){ 

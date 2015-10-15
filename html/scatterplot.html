@@ -18,6 +18,8 @@
         <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
         <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
         <script type="text/javascript" src="../js/d3.v3.min.js"></script>
+        <!--<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>-->
+        <script type="text/javascript" src="../js/d3.tip.v0.6.3.js"></script>
         <!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>-->
    
@@ -63,7 +65,7 @@
     <script type="text/javascript">
         $(document).ready(function(event){
             (function(){
-                var canvas;
+                var canvas, chart;
                 var fileContent, rawdata = [], originalData = []; 
                 var fields, auxilaryFields, fieldCount, delim;
                 var xaxisName, yaxisName;
@@ -111,19 +113,28 @@
                     /*Bootstrap css classes for button styling*/
                     var classes = "btn btn-default sm-btn glyphicon";
             
-                    var btnRemove = toolboxg.append('xhtml:button').attr('type', 'button')
-                                 .attr('class', classes + ' glyphicon-remove-circle')
+                    var btnRemoveBrushed = toolboxg.append('xhtml:button').attr('type', 'button')
+                                 .attr('class', classes + ' glyphicon-remove')
                                  .attr('title', 'Remove Brushed');
-                    
+
                     var btnReset = toolboxg.append('xhtml:button').attr('type', 'button')
-                                 .attr('class', classes + ' glyphicon-refresh').attr('title', 'Reset');
+                                       .attr('class', classes + ' glyphicon-refresh').attr('title', 'Reset');
+                    
+                    var btnKeepBrushed = toolboxg.append('xhtml:button').attr('type', 'button')
+                                 .attr('class', classes + ' glyphicon-ok')
+                                 .attr('title', 'Keep Brushed');
+
+                    var btnRescaleChart = toolboxg.append('xhtml:button').attr('type', 'button')
+                                .attr('class', classes + ' glyphicon-fullscreen')
+                                .attr('title', 'Rescale brushed');
+           
                     
                     var btnExport = toolboxg.append('xhtml:button').attr('type', 'button')
                                  .attr('class', classes + ' glyphicon-export').attr('title', 'Export');
                    
-                    var btnRescale = toolboxg.append('xhtml:button').attr('type', 'button')
+                    var btnRescaleBrushed = toolboxg.append('xhtml:button').attr('type', 'button')
                                 .attr('class', classes + ' glyphicon-resize-full')
-                                .attr('title', 'Rescale brushed')
+                                .attr('title', 'Rescale brushed');
 
                     var btnTT = toolboxg.append('xhtml:button').attr('type', 'button')
                                 .attr('class', classes + ' glyphicon-comment')
@@ -132,6 +143,9 @@
                     var btnStat = toolboxg.append('xhtml:button').attr('type', 'button')
                                 .attr('class', classes + ' glyphicon-equalizer')
                                 .attr('title', 'Disable Stat')
+                    var btnHome = toolboxg.append('xhtml:button').attr('type', 'button')
+                                .attr('class', classes + ' glyphicon-home')
+                                .attr('title', 'Reload chart')
                     
                    
                     btnTT.on('click', function(){
@@ -160,19 +174,7 @@
                             chartBrushEnd();
                         }
                         toggle(selector, !offstate);
-                    });
-
-                    btnRescale.on('click', function(){
-                        var mainBrushedPs = chart.chartPoints.filter(function(){return d3.select(this).classed('selected');});
-                        if(mainBrushedPs.size()){
-                            var data = [];
-                            mainBrushedPs.each(function(d, i){
-                                data.push(d);
-                            });
-                            chart.redraw(data, true);   //2nd arg should be false if the navigator has to be redrawn
-                        }
-                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush
-                    });
+                    });                   
                     
                     function toggle(btn, offstate){
                         btn.classed('glyphicon-check', offstate)
@@ -180,7 +182,7 @@
                         btn.classed('btn-off', !offstate)
                     }
                     
-                    btnRemove.on('click', function(){
+                    btnRemoveBrushed.on('click', function(){
                         /*Has three effects,
                             1.  Hides all the points inside the brushed region of the main chart
                             2.  Associates the affected points with the corresponding points in the navbar
@@ -193,9 +195,20 @@
                             pointMap[d.lineNo]['nav'].classed('hidden', true);
                         });*/
                         
-                        $("#statDiv").css("opacity", 0);  //Clear statistics div 
-                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush
-                    })
+                        $("#statDiv").css("opacity", 0);  //Clear statistics div                        
+                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush                 
+                    });
+                
+                    btnKeepBrushed.on('click', function(){
+                        var mainUnBrushedPs = chart.chartPoints.filter(function(){return !d3.select(this).classed('selected');});
+
+                        mainUnBrushedPs.classed('hidden', true);                    
+                        
+                        $("#statDiv").css("opacity", 0);  //Clear statistics div                        
+                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush    
+                        chart.chartPoints.classed('selected', false)
+
+                    });
                     
                     btnReset.on('click', function(){
                         /*
@@ -211,7 +224,7 @@
                         chart.chartPoints.classed('hidden', false);
                         chart.chartPoints.classed('selected', false);
                         chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush
-                    })
+                    });
 
                     btnExport.on('click', function(){
                         /*
@@ -226,8 +239,50 @@
 
                         window.open('data:text/csv; charset=utf-8,' + escape(csvDictWriter(visibleData, delim)));
                         $("#statDiv").css("opacity", 0);  //Clear statistics div 
-                    })
+                    });
+
+                    btnRescaleBrushed.on('click', function(){
+                        var mainBrushedPs = chart.chartPoints.filter(function(){
+                            var p = d3.select(this);
+                            return !p.classed('hidden') && p.classed('selected');
+                        });
+
+                        if(mainBrushedPs.size()){
+                            var data = [];
+                            mainBrushedPs.each(function(d, i){
+                                data.push(d);
+                            });
+                            chart.redraw(data, true);   //2nd arg should be true if the navigator has to be redrawn
+                            chart.navBrushStart();
+                        }
+                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush
+                    });
+                    btnRescaleChart.on('click', function(){
+                        var visiblePs = chart.chartPoints.filter(function(){
+                            return !d3.select(this).classed('hidden');
+                        });
+
+                        if(visiblePs.size()){
+                            var data = [];
+                            visiblePs.each(function(d, i){
+                                data.push(d);
+                            });
+                            chart.redraw(data, true);   //2nd arg should be true if the navigator has to be redrawn
+                            chart.navBrushStart();
+                        }
+                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //Clear main chart brush
+                    });
+
+                    btnHome.on('click', function(){
+                        if(chart && chart.chartPoints.size() != rawdata.length){
+                            chart.redraw(rawdata, true);
+                            //chart.chartBrushStart();
+                            chart.navBrushStart();
+                            //chart.navBrushEnd();
+                        }
+                    });
                 }
+
                 function readfile(e){  //An event handler function to be called when the input control 'changes'
                     var fileobj = e.target.files[0];
                     var fr = new FileReader();
@@ -340,14 +395,11 @@
                     $('#d3Chart').html('');
                     $('#statDiv').css('opacity', 0);
                 }
+
                 function draw(){
                     /*Clear chart and stat areas*/
                     $('#d3Chart').html('');
                     $('#statDiv').css('opacity', 0);
-                    
-                    canvas = d3.select('#d3Chart').append('svg')
-                                    .attr('width', canvasW).attr('height', canvasH).append('g');
-                     
                     var axes = {};
                     var droppables = $('.axisSlot');
                     $.each(droppables, function(idx, d){    /*Get the x and y axes names*/
@@ -375,10 +427,17 @@
                     if(i != -1){    //Remove the field name that 'yaxisName' contains
                         auxilaryFields.splice(i, 1);
                     }
+
+                    canvas = d3.select('#d3Chart').append('svg')
+                                    .attr('width', canvasW).attr('height', canvasH).append('g');
                     
+
                     var div = d3.select('#tooltipDiv');
                     var toolboxtipDiv = d3.select('#toolboxtipDiv');
                     
+                    var tip = d3.tip().attr('class', 'd3-tip').html(function(d){return drawToolTip(d);});
+                    canvas.call(tip);
+
                     var options = {
                         'renderTo': canvas, 
                         'chart': {
@@ -391,7 +450,8 @@
                                 'start': chartBrushStart,
                                 'move': chartBrushMov,
                                 'end': chartBrushEnd 
-                            }
+                            },
+                            'tooltip':tip
                         },
                         'navigator': {
                             'posX': navStartPoints[0],
@@ -412,19 +472,23 @@
                             'name': yaxisName
                         }
                     };
-                    var chart = new ScatterPlot(options);
-                    chart.draw();
+                    chart = new ScatterPlot(options);
+                    chart.draw();                
+                                  
+                    chart.chartBrushStart();
+                    chart.navBrushStart();
+                    chart.navBrushMove();
                     
                     drawToolBox(canvas, toolboxStartPoints, chart);
-                    //drawToolBox = function(){}; //Has the effect of make the original function to run once
-                    
-                    chart.chartBrushStart(); 
+                    //drawToolBox = function(){}; //Has the effect of make the original function to run once                    
                     
                     var chartSelectedData = [];
                     function chartBrushStart(){
-                        this.mainChart.classed("chart", true);
+                        var chart = this;
+                        chart.mainChart.classed("chart", true);
                         chartSelectedData = [];
                     }
+
                     function chartBrushMov(){
                         chart = this;
                         var extent = chart.chartBrush.extent();
@@ -495,70 +559,90 @@
                                 lastRow = $("#statDiv table tbody").append(html);
                             });
                         }
+                    }                    
+
+                    function navBrushStart() {
+                        var chart = this;
+                        var s = chart.navBrush.extent();                    
+                                             
+                        chart.navChart.classed("chart", true);
+                        chart.navPoints.classed('selected', true)
+                        $("#statDiv").css("opacity", 0);  //Clear the table before redraw
+                        chart.chartPoints.classed("selected", false);
+                        chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //clear main chart brush
+                    }
+
+                    function navBrushMove() {
+                        var chart = this;
+                        var s = chart.navBrush.extent();
+
+                        chart.navPoints.classed("selected", function(d) { 
+                        var x0 = s[0][0], y0 = s[0][1],
+                            x1 = s[1][0], y1 = s[1][1];
+                        
+                            var x = inRange(d[xaxisName], x0, x1); 
+                            var y = inRange(d[yaxisName], y0, y1); 
+                            return x && y;
+                            });
+                    }
+
+                    function navBrushEnd() {
+                        var chart = this;
+                        chart.navChart.classed("chart", !d3.event.target.empty());
+                        var navSelectedData = [];
+
+                        var s = chart.navBrush.extent();
+                        
+                        var x0 = s[0][0], y0 = s[0][1], x1 = s[1][0], y1 = s[1][1];
+                        if(x0 == x1 || y0 == y1){
+                            /*If the brush is a simple line*/
+                            var data=[];
+                            chart.navPoints.each(function(d, i){
+                                data.push(d);
+                            });
+
+                            //chart.redraw(data, true);
+                            chart.navChart.classed('chart', true);
+                            chart.navPoints.classed('selected')
+                            return;
+                        }
+
+                        var selectedNavPoints = chart.navPoints.filter(function(){return d3.select(this).classed('selected');});
+                        selectedNavPoints.each(function(d, i){
+                            navSelectedData.push(d);
+                        });
+
+                        if(selectedNavPoints.size()){
+                            chart.redraw(navSelectedData, false);
+                        }
                     }
 
                     var getStat = {
-                        "Minimum":min,  "Maximum": max, "Mean": mean,
-                        "Variance":variance, "Std. dev.": standardDeviation
-                    };
+                              "Minimum":min,  "Maximum": max, "Mean": mean,
+                                "Variance":variance, "Std. dev.": standardDeviation
+                    }
                     
                     function toolboxtip(e, msg){
                         toolboxtipDiv.transition().duration(200).style('opacity', 0.9);
                         toolboxtipDiv.text(msg);
                         toolboxtipDiv.style('left', e.pageX+'px').style('top', (e.pageY + 10) + 'px');
                     }
+
                     function onSelected(circle, d, i){
                         pointMap[d.lineNo]['main'].classed('hidden', true);
                         pointMap[d.lineNo]['nav'].classed('hidden', true);
                     }
+
                     function inRange(x, arg1, arg2){ 
                         var min, max;
                         if(arg1 < arg2){ min = arg1; max = arg2; }
                         else{ min = arg2; max = arg1;}
                     
                         return min <= x && x <= max
-                    }
+                    } 
 
-                function navBrushStart() {
-                    var chart = this;
-                    chart.navChart.classed("chart", true);
-                    $("#statDiv").css("opacity", 0);  //Clear the table before redraw
-                    chart.chartPoints.classed("selected", false);
-                    chart.mainChart.select('.brush').call(chart.chartBrush.clear());    //clear main chart brush
-                }
-
-                function navBrushMove() {
-                    var chart = this;
-                    var s = chart.navBrush.extent();
-                    chart.navPoints.classed("selected", function(d) { 
-                    var x0 = s[0][0], y0 = s[0][1],
-                        x1 = s[1][0], y1 = s[1][1];
-                    
-                        var x = inRange(d[xaxisName], x0, x1); 
-                        var y = inRange(d[yaxisName], y0, y1); 
-                        return x && y;
-                    });
-                }
-
-                function navBrushEnd() {
-                    var chart = this;
-                    chart.navChart.classed("chart", !d3.event.target.empty());
-                    var navSelectedData = [];
-
-                    var s = chart.navBrush.extent();
-                    
-                    var x0 = s[0][0], y0 = s[0][1], x1 = s[1][0], y1 = s[1][1];
-                    if(!chart.navBrush.empty()){
-                        var selectedNavPoints = chart.navPoints.filter(function(){return d3.select(this).classed('selected');});
-                        selectedNavPoints.each(function(d, i){
-                            navSelectedData.push(d);
-                        });
-                        chart.redraw(navSelectedData, true);
-                    }
-                }
-                   
                     function emptyToolTip(){
-                        div.transition()
+                         div.transition()
                             .duration(100)
                             .style('opacity', 0);
                     }
@@ -586,7 +670,7 @@
                             /*
                             div.transition().duration(100).style('opacity', 0.8);
                             div.html(html);
-                            div.style('left', (d3.event.pageX) + 'px').style('top', (d3.event.pageY) + 'px');*/
+                                div.style('left', (d3.event.pageX) + 'px').style('top', (d3.event.pageY) + 'px');*/
                     }
                 }
             }());

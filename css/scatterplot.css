@@ -66,3 +66,9 @@ input [type="text"]{
     -webkit-box-shadow: 0 0 .2em rgba(0, 0, 0, .8);
     box-shadow: 0 0 .2em rgba(0, 0, 0, .8);*/
 }
+.resize path {
+  fill: #666;
+  fill-opacity: .8;
+  stroke: #000;
+  stroke-width: 1.5px;
+}
