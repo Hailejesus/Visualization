@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+       
+       <!--
+            ################## REMOTE RESOURCES ####################
+        <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+        <script src="http://d3js.org/d3.v3.min.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>-->
+       
+            <!-- ############## LOCAL RESOURCES  ############### -->
+        <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>
+        <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="../js/d3.v3.min.js"></script>
+        <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
+        
+        <script type="text/javascript" src="../js/util.js"></script>
+        <link rel="stylesheet" href="../css/scattermatrix.css" />
+    </head>
+    <body>
+        <div class="container">
+            <div class = "row">
+                <div class="col-md-3"> </div>
+                <div class = "col-md-6">
+                    <form class="form-inline" role="form">
+                        <div class="form-group dropdown">
+                            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
+                                Separator
+                              <span class="caret"></span></button>
+                              <ul id="delim" class="dropdown-menu">
+                                <li><a href="#">Comma</a></li>
+                                <li><a href="#">Semicolon</a></li>
+                                <li><a href="#">Tab</a></li>
+                              </ul>
+                        </div>   
+                        <div class="form-group">
+                            <span class="btn btn-default btn-file">
+                                Browse <input id="filebrowsed" type="file" disabled>
+                            </span>
+                        </div>
+                        <div id="fieldsDiv" class="form-group" style="max-width:300px;">
+                        </div>
+                        <div class="form-group">        
+                            <button id="btnPlot" type="submit" class="btn btn-default" disabled>Plot</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-9">
+                    <div id='d3Chart'></div>
+                </div>
+                <div class="col-md-3">
+                    <div id="statDiv" class="col-md-12"> </div>
+                </div>
+            </div>
+            <div class="row">
+                <div id="statDiv2" class="tooltip" style="opacity:0"> </div>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            $(document).ready(function(event){
+                var width = 960, size = 150, padding = 19.5;
+                var rawdata = {}, filteredFields = ["eval_id"], fields, domainByField = {};
+                var xScale = d3.scale.linear().range([padding / 2, size - padding / 2]);
+                var yScale = d3.scale.linear().range([size - padding / 2, padding / 2]);
+                var xAxis = d3.svg.axis().scale(xScale).orient("bottom").ticks(5);
+                var yAxis = d3.svg.axis().scale(yScale).orient("left") .ticks(5);
+                var color = d3.scale.category10();
+                var xaxisName, yaxisName;
+            $("#delim li").on('click', function(event){
+                var selected = this.textContent;
+                if(selected === "Comma") delim = ',';
+                else if(selected === "Semicolon") delim = ';';
+                else delim = '\t';
+                $("#filebrowsed").prop('disabled', false);
+            });
+            
+            function readerHandler(e2){
+                fileContent = e2.target.result;
+                rawdata = csvDictReader(fileContent, delim);
+                fields = Object.keys(rawdata[0]);
+                
+                /*Populate checkboxes with fields names */
+                d3.select("#fieldsDiv").html(''); 
+                d3.select("#fieldsDiv").selectAll('label')
+                    .data(fields).enter()
+                    .append('label').attr("class", "checkbox-inline")
+                    .html(function(d){
+                        var html = '<input type="checkbox" value="' + d + '">' + d;
+                        return html;
+                    });
+        
+                $("#btnPlot").prop('disabled', false);
+            }
+           
+            function readfile(e1){  //An event handler function to be called when the input control 'changes'
+                var fileobj = e1.target.files[0];
+                var fr = new FileReader();
+                fr.readAsText(fileobj);
+                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+            } 
+          
+            $('.btn-file :file').on('fileselect', function(event) {
+                readfile(event);
+            });
+           
+            $('.btn-file :file').on('change', function() {
+                var input = $(this);
+                input.trigger('fileselect');
+            }); 
+            d3.selectAll('input').on('input', function(){
+                console.log(this);
+            });
+            $("#btnPlot").on('click', function(){
+                    var checkedFields = [];
+                    d3.selectAll('input').each(function(){
+                        var checkbox = d3.select(this);
+                        if(checkbox.property("checked")){
+                            var value = checkbox.property("value");
+                            checkedFields.push(value);
+                        }
+                    });
+
+                    fieldCount = checkedFields.length;
+                    checkedFields.forEach(function(field) {//The minimum and maximum values corresponding to a field
+                        domainByField[field] = d3.extent(rawdata, function(d){
+                            return d[field];
+                        });
+                    });
+                    xAxis.tickSize(size * fieldCount);
+                    yAxis.tickSize(-size * fieldCount);
+
+                    d3.select("svg").remove();
+                    var svg = d3.select("#d3Chart").append("svg")
+                        .attr("width", size * fieldCount + padding).attr("height", size * fieldCount + padding)
+                        .append("g").attr("transform", "translate(" + padding + "," + padding / 2 + ")");
+
+                    svg.selectAll(".x.axis").data(checkedFields).enter().append("g").attr("class", "x axis")
+                        .attr("transform", function(d, i) { return "translate(" + (fieldCount - i - 1) * size + ",0)"; })
+                        .each(function(d) { xScale.domain(domainByField[d]); d3.select(this).call(xAxis); });
+
+                    svg.selectAll(".y.axis").data(checkedFields).enter().append("g").attr("class", "y axis")
+                        .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
+                        .each(function(d) { yScale.domain(domainByField[d]); d3.select(this).call(yAxis); });
+
+                    var cell = svg.selectAll(".cell").data(cartesian(checkedFields, checkedFields))
+                             .enter().append("g").attr("class", "cell")
+                             .attr("transform", function(d) { 
+                                return "translate(" + (fieldCount - d.i - 1) * size + "," + d.j * size + ")"; 
+                                }).each(plot);
+                    svg.classed('chart', true);
+                    // Titles for the diagonal.
+                    cell.filter(function(d) { return d.i === d.j; }).append("text")
+                        .attr("x", padding).attr("y", padding).attr("dy", ".71em").text(function(d) { return d.x; });
+
+                    var brush = d3.svg.brush().x(xScale).y(yScale)
+                        .on("brushstart", brushstart).on("brush", brushmove).on("brushend", brushend);
+                    cell.call(brush);
+
+                    function plot(selectorData) {
+                        var cell = d3.select(this);
+
+                        xScale.domain(domainByField[selectorData.x]);
+                        yScale.domain(domainByField[selectorData.y]);
+
+                        cell.append("rect").attr("class", "frame").attr("x", padding / 2)
+                            .attr("y", padding / 2).attr("width", size - padding).attr("height", size - padding);
+
+                        cell.selectAll("circle").data(rawdata).enter().append("circle")
+                            .attr("cx", function(d) { return xScale(d[selectorData.x]); })
+                            .attr("cy", function(d) { return yScale(d[selectorData.y]); })
+                            .attr("r", 3).style("fill", "#ccc"); 
+                    }
+
+                    var brushCell;
+
+                    // Clear the previously-active brush, if any.
+                    function brushstart(p) {
+                        if (brushCell !== this) {
+                            d3.select(brushCell).call(brush.clear());
+                            xScale.domain(domainByField[p.x]);
+                            yScale.domain(domainByField[p.y]);
+                            brushCell = this;
+                        }
+                    }
+
+                    // Highlight the selected circles.
+                    function brushmove(p) {
+                        var e = brush.extent();
+                        svg.selectAll("circle").classed("selected", function(d) {
+                                var is_brushed = e[0][0] > d[p.x] || d[p.x] > e[1][0]
+                                || e[0][1] > d[p.y] || d[p.y] > e[1][1];
+                                return !is_brushed;
+                                });
+                    }
+
+                    // If the brush is empty, select all circles.
+                    function brushend() {
+                        if (brush.empty()) svg.selectAll(".selected").classed("selected", false);
+                    }
+
+                    function cartesian(field1, field2) {
+                        //both parameters are assumed as arrays of strings
+                        var c = [], n = field1.length, m = field2.length, i, j;
+                        for (i = 0; i < n; i++) 
+                            for (j = 0; j < m; j++) 
+                                c.push({x: field1[i], i: i, y: field2[j], j: j});
+                        return c;
+                    }
+                    d3.select(self.frameElement).style("height", size * fieldCount + padding + 20 + "px");
+
+                });
+            });
+        </script>
+    </body>
+</html>

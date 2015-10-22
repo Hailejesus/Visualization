@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<p>Haileyesus</p>
+<p>Alemu</p>
+<script>
+    var Obj = function(){
+        this.name = "Haile";
+    }
+    Obj.prototype.plot = function(a, b,  c){
+        console.log(this, a, b, c);
+    }
+    var o = new Obj();
+    o.plot();
+    console.log('');
+    var ps = d3.selectAll('p').each(o.plot);
+</script>

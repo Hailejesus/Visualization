@@ -11,209 +11,268 @@
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>-->
        
             <!-- ############## LOCAL RESOURCES  ############### -->
-        <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>
+        <link href="http://code.jquery.com/ui/1.10.4/themes/ui-lightness/jquery-ui.css" rel="stylesheet">
+        <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+        <script src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+
+        <!-- <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>-->
+  
         <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
-        <script type="text/javascript" src="../js/d3.v3.min.js"></script>
         <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
         
+        <!--<script type="text/javascript" src="../js/d3.v3.min.js"></script>-->
+        
+        <script type="text/javascript" src="../js/d3.js"></script>
+
         <script type="text/javascript" src="../js/util.js"></script>
+        <script type="text/javascript" src="../js/OOPd3.js"></script>
         <link rel="stylesheet" href="../css/scattermatrix.css" />
     </head>
     <body>
-        <div class="container">
-            <div class = "row">
-                <div class="col-md-3"> </div>
-                <div class = "col-md-6">
-                    <form class="form-inline" role="form">
-                        <div class="form-group dropdown">
-                            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
-                                Separator
-                              <span class="caret"></span></button>
-                              <ul id="delim" class="dropdown-menu">
-                                <li><a href="#">Comma</a></li>
-                                <li><a href="#">Semicolon</a></li>
-                                <li><a href="#">Tab</a></li>
-                              </ul>
-                        </div>   
-                        <div class="form-group">
-                            <span class="btn btn-default btn-file">
-                                Browse <input id="filebrowsed" type="file" disabled>
-                            </span>
-                        </div>
-                        <div id="fieldsDiv" class="form-group" style="max-width:300px;">
-                        </div>
-                        <div class="form-group">        
-                            <button id="btnPlot" type="submit" class="btn btn-default" disabled>Plot</button>
-                        </div>
-                    </form>
-                </div>
+        <div id="container" class="content"> 
+            <div id="menu">
+                <fieldset id="mainFS" style="width:350px;">
+                    <fieldset id="fileFS" style="display:inline">
+                        <legend>File Attributes</legend>
+                        <fieldset id="separatorFS" style="display:inline">
+                               <legend>Separator</legend>
+                               <label class="radio-inline"><input type="radio" name="delimradio" value="Comma">Comma</label>
+                               <label class="radio-inline"><input type="radio" name="delimradio" value="Semicolon">Semicolon</label>
+                               <label class="radio-inline"><input type="radio" name="delimradio" value="Tab">Tab</label> 
+                        </fieldset>
+                         <label class="checkbox-inline">
+                            <input id="headerFlag" type="checkbox" />Has Header
+                        </label>
+                        <span class="btn btn-default btn-file">
+                            Browse <input id="filebrowsed" type="file">
+                        </span>
+                    </fieldset>
+                </fieldset>
             </div>
-            <div class="row">
-                <div class="col-md-9">
-                    <div id='d3Chart'></div>
-                </div>
-                <div class="col-md-3">
-                    <div id="statDiv" class="col-md-12"> </div>
-                </div>
-            </div>
-            <div class="row">
-                <div id="statDiv2" class="tooltip" style="opacity:0"> </div>
-            </div>
+            <div id='d3Chart'> </div>
+            <div id="statDiv" style="position:absolute;box-shadow: 10px 10px 5px #888888;"></div>
         </div>
+        <style>
+            circle.hide{
+                 /*fill: #ccc !important;*/
+                 fill:"red";
+                 fill-opacity:1;
+            }
+        </style>
 
         <script type="text/javascript">
-            $(document).ready(function(event){
-                var width = 960, size = 150, padding = 19.5;
-                var rawdata = {}, filteredFields = ["eval_id"], fields, domainByField = {};
-                var xScale = d3.scale.linear().range([padding / 2, size - padding / 2]);
-                var yScale = d3.scale.linear().range([size - padding / 2, padding / 2]);
-                var xAxis = d3.svg.axis().scale(xScale).orient("bottom").ticks(5);
-                var yAxis = d3.svg.axis().scale(yScale).orient("left") .ticks(5);
-                var color = d3.scale.category10();
-                var xaxisName, yaxisName;
-            $("#delim li").on('click', function(event){
-                var selected = this.textContent;
-                if(selected === "Comma") delim = ',';
-                else if(selected === "Semicolon") delim = ';';
-                else delim = '\t';
-                $("#filebrowsed").prop('disabled', false);
-            });
-            
-            function readerHandler(e2){
-                fileContent = e2.target.result;
-                rawdata = csvDictReader(fileContent, delim);
-                fields = Object.keys(rawdata[0]);
-                
-                /*Populate checkboxes with fields names */
-                d3.select("#fieldsDiv").html(''); 
-                d3.select("#fieldsDiv").selectAll('label')
-                    .data(fields).enter()
-                    .append('label').attr("class", "checkbox-inline")
-                    .html(function(d){
-                        var html = '<input type="checkbox" value="' + d + '">' + d;
-                        return html;
-                    });
-        
-                $("#btnPlot").prop('disabled', false);
-            }
-           
-            function readfile(e1){  //An event handler function to be called when the input control 'changes'
-                var fileobj = e1.target.files[0];
-                var fr = new FileReader();
-                fr.readAsText(fileobj);
-                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
-            } 
-          
-            $('.btn-file :file').on('fileselect', function(event) {
-                readfile(event);
-            });
-           
-            $('.btn-file :file').on('change', function() {
-                var input = $(this);
-                input.trigger('fileselect');
-            }); 
-            d3.selectAll('input').on('input', function(){
-                console.log(this);
-            });
-            $("#btnPlot").on('click', function(){
-                    var checkedFields = [];
-                    d3.selectAll('input').each(function(){
-                        var checkbox = d3.select(this);
-                        if(checkbox.property("checked")){
-                            var value = checkbox.property("value");
-                            checkedFields.push(value);
-                        }
-                    });
+            $(document).ready(function(event){            
+                var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};   
+                var colorBy;              
+              
+                $('.btn-file :file').on('fileselect', function(event) {
+                    readfile(event);
+                });
+               
+                $('.btn-file :file').on('change', function() {
+                    var input = $(this);
+                    input.trigger('fileselect');
+                }); 
 
-                    fieldCount = checkedFields.length;
-                    checkedFields.forEach(function(field) {//The minimum and maximum values corresponding to a field
-                        domainByField[field] = d3.extent(rawdata, function(d){
-                            return d[field];
-                        });
-                    });
-                    xAxis.tickSize(size * fieldCount);
-                    yAxis.tickSize(-size * fieldCount);
+                function readfile(e){  //An event handler function to be called when the input control 'changes'
+                    var fileobj = e.target.files[0];
+                    var fr = new FileReader();
+                    fr.readAsText(fileobj);
+                    fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+                } 
+                function readerHandler(e){
+                    /*Generate the dataset from the file and populate the menu */
+                    var checked = $('[name="delimradio"]:checked');
+                    delim = separators[checked[0].value]
 
-                    d3.select("svg").remove();
-                    var svg = d3.select("#d3Chart").append("svg")
-                        .attr("width", size * fieldCount + padding).attr("height", size * fieldCount + padding)
-                        .append("g").attr("transform", "translate(" + padding + "," + padding / 2 + ")");
+                    fileContent = e.target.result;
+                    
+                    var headerFlag = $('#headerFlag').prop('checked');
+                    
+                    rawdata = csvDictReader(fileContent, delim, headerFlag);
+                    originalData = rawdata.map(function(row){return clone(row);});
+                    
+                    var nFields = [], sFields = []; //arrays of numbers and strings, respectively;
+                    var d = rawdata[0];
+                    for (key in d){
+                        typeof d[key] === "string"? sFields.push(key): nFields.push(key)
+                    }                 
+                    
+                    fields = Object.keys(rawdata[0]);
 
-                    svg.selectAll(".x.axis").data(checkedFields).enter().append("g").attr("class", "x axis")
-                        .attr("transform", function(d, i) { return "translate(" + (fieldCount - i - 1) * size + ",0)"; })
-                        .each(function(d) { xScale.domain(domainByField[d]); d3.select(this).call(xAxis); });
+                    var mainFS = $('#mainFS');
+                    
+                    mainFS.find('#fieldsFS').remove();   //clear previously rendered fieldset
 
-                    svg.selectAll(".y.axis").data(checkedFields).enter().append("g").attr("class", "y axis")
-                        .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
-                        .each(function(d) { yScale.domain(domainByField[d]); d3.select(this).call(yAxis); });
+                    var fieldsFS = $('<fieldset></fieldset>')
+                                    .attr('id', 'fieldsFS').attr('class', 'fieldPile')
+                                    .css({'max-height':'250px', 'overflow': 'auto'})
+                                    .html('<legend>Fields</legend>').appendTo(mainFS);                 
+                    
+                    
+                    var numericFS = $('<fieldset></fieldset>').attr('id', 'numericFS')                    
+                                        .appendTo(fieldsFS);
+                    $('<legend>Numeric</legend>').appendTo(numericFS);
 
-                    var cell = svg.selectAll(".cell").data(cartesian(checkedFields, checkedFields))
-                             .enter().append("g").attr("class", "cell")
-                             .attr("transform", function(d) { 
-                                return "translate(" + (fieldCount - d.i - 1) * size + "," + d.j * size + ")"; 
-                                }).each(plot);
-                    svg.classed('chart', true);
-                    // Titles for the diagonal.
-                    cell.filter(function(d) { return d.i === d.j; }).append("text")
-                        .attr("x", padding).attr("y", padding).attr("dy", ".71em").text(function(d) { return d.x; });
+                    /*Populate checkboxes with fields names */   
+                    numericFS.buttonset();
+                    numericFS.append(function(){                       
+                            var html = [];
+                            nFields.forEach(function(field){                               
+                                html.push('<input type="checkbox" id="' + field + '" value="' + field +'"><label for="' + field + '">' + field + '</label>');
+                            });                           
+                            return html.join(''); 
+                    })                        
+                    //.buttonset()
 
-                    var brush = d3.svg.brush().x(xScale).y(yScale)
-                        .on("brushstart", brushstart).on("brush", brushmove).on("brushend", brushend);
-                    cell.call(brush);
+                    var categoricalFS = $('<fieldset></fieldset>').attr('id', 'categoricalFS')                    
+                                        .appendTo(fieldsFS);
+                    $('<legend>Categorical</legend>').appendTo(categoricalFS);
 
-                    function plot(selectorData) {
-                        var cell = d3.select(this);
+                    /*categoricalFS.append(function(){                       
+                            var html = [];
+                            sFields.forEach(function(field){                               
+                                html.push('<input type="checkbox" id="' + field + '" value="' + field +'"><label for="' + field + '">' + field + '</label>');
+                            });                           
+                            return html.join(''); 
+                    })              */
 
-                        xScale.domain(domainByField[selectorData.x]);
-                        yScale.domain(domainByField[selectorData.y]);
-
-                        cell.append("rect").attr("class", "frame").attr("x", padding / 2)
-                            .attr("y", padding / 2).attr("width", size - padding).attr("height", size - padding);
-
-                        cell.selectAll("circle").data(rawdata).enter().append("circle")
-                            .attr("cx", function(d) { return xScale(d[selectorData.x]); })
-                            .attr("cy", function(d) { return yScale(d[selectorData.y]); })
-                            .attr("r", 3).style("fill", "#ccc"); 
+                    var lastDragged; 
+                    for(i = 0; i < sFields.length; i++){
+                        /*Fill the list of fields*/
+                        field = sFields[i];
+                        $('<div>' + field + '</div>')
+                            .data('field', field)
+                            .attr('id', field)
+                            .attr('class', 'draggable roundcorner')
+                            .appendTo(categoricalFS)
+                            .draggable({
+                                revert: true,  revertDuration:0, helper:'clone', stack: '#categoricalFS div', cursor: 'move', 
+                                snap:'.axisSlot', snapMode:'inner', snapTolerance:30,
+                                start: function(event, ui){
+                                    lastDragged = $(this).parent();
+                                }
+                                });
                     }
+
+                    mainFS.find('#chartOptFS').remove();    //clear previously rendered fieldset
+                    var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS')
+                                        .appendTo(mainFS);
+
+                    $('<legend>Chart Options</legend>').appendTo(chartOptFS);                    
+                
+                    var colorBox = $('<div></div>').attr('class', 'axisPile').html('<h4>Color By</h4>').appendTo(chartOptFS);
+
+                    $('<div></div>').appendTo(colorBox).attr('id', 'xAxis')
+                            .attr('class', 'field axisSlot roundcorner')
+                            .droppable({
+                                accept: '.draggable', 
+                                hoverClass: 'hovered',
+                                drop: handleFieldDrop
+                            });
+
+                    var sizeBox = $('<div></div>').attr('class', 'axisPile').html('<h4>Size By</h4>').appendTo(chartOptFS);                         
+                    $('<div></div>').appendTo(sizeBox).attr('id', 'yAxis')
+                            .attr('class', 'field axisSlot roundcorner')
+                            .droppable({
+                                accept: '.draggable', 
+                                hoverClass: 'hovered',
+                                drop: handleFieldDrop,
+                            });
+                    $('fieldset').addClass('roundcorner'); 
+                    function handleFieldDrop(event, ui){
+                        var dropped = ui.draggable;
+                        var droppedOn = this;
+                        /*When the droppable already has a draggable, revert the previous*/
+                        if($(droppedOn).children().length > 0){
+                            $(droppedOn).children().detach().prependTo($(lastDragged));
+                        }
+
+                        $(dropped).detach().css({
+                            top: 0,
+                            left: 0
+                        }).prependTo($(droppedOn));
+                        
+                        colorBy = $($(droppedOn).children()[0]).attr('id');
+                    }
+
+                    $('<button>')
+                        .appendTo(mainFS).attr('id', 'btnPlot').attr('type', 'submit')
+                        .attr('class', 'btn btn-default').text('Plot').on('click', draw)
+                
+                    $('#d3Chart').html('');
+                    $('#statDiv').css('opacity', 0);
+                }
+                
+                function draw(){                    
+                    $('#d3Chart').html('');
+                    var checkedFields = [];
+                    $.each($('#fieldsFS input:checked'), function(){
+                        checkedFields.push($(this).val());
+                    })                 
+                  
+                    fieldCount = checkedFields.length;              
 
                     var brushCell;
 
                     // Clear the previously-active brush, if any.
-                    function brushstart(p) {
-                        if (brushCell !== this) {
-                            d3.select(brushCell).call(brush.clear());
-                            xScale.domain(domainByField[p.x]);
-                            yScale.domain(domainByField[p.y]);
-                            brushCell = this;
+                    function chartBrushStart(cell) {
+                        var MatrixPlot = this;   
+                        var p = d3.select(cell)[0][0].__data__;                      
+                        
+                        if (brushCell !== cell) {   //CHECK 'this'
+                          d3.select(brushCell).call(MatrixPlot.chartBrush.clear());
+                          MatrixPlot.xScale.domain(MatrixPlot.domainByField[p.x]);
+                          MatrixPlot.yScale.domain(MatrixPlot.domainByField[p.y]);
+                          brushCell = cell;
                         }
-                    }
+                    } 
 
                     // Highlight the selected circles.
-                    function brushmove(p) {
-                        var e = brush.extent();
-                        svg.selectAll("circle").classed("selected", function(d) {
-                                var is_brushed = e[0][0] > d[p.x] || d[p.x] > e[1][0]
-                                || e[0][1] > d[p.y] || d[p.y] > e[1][1];
-                                return !is_brushed;
-                                });
+                    function chartBrushMov(cell) {
+                        var MatrixPlot = this;
+                        var p = d3.select(cell)[0][0].__data__;
+
+                        var e = MatrixPlot.chartBrush.extent();
+                        canvas.selectAll("circle").classed("hide", function(d) {
+                          return e[0][0] > d[p.x] || d[p.x] > e[1][0] || e[0][1] > d[p.y] || d[p.y] > e[1][1];
+                        });
                     }
 
                     // If the brush is empty, select all circles.
-                    function brushend() {
-                        if (brush.empty()) svg.selectAll(".selected").classed("selected", false);
+                    function chartBrushEnd() {
+                        var MatrixPlot = this;
+                        if (MatrixPlot.chartBrush.empty()) 
+                            canvas.selectAll(".hide").classed("hide", false);
                     }
 
-                    function cartesian(field1, field2) {
-                        //both parameters are assumed as arrays of strings
-                        var c = [], n = field1.length, m = field2.length, i, j;
-                        for (i = 0; i < n; i++) 
-                            for (j = 0; j < m; j++) 
-                                c.push({x: field1[i], i: i, y: field2[j], j: j});
-                        return c;
-                    }
-                    d3.select(self.frameElement).style("height", size * fieldCount + padding + 20 + "px");
+                    var canvas = d3.select('#d3Chart').append('svg');
 
-                });
+                    var options = {
+                        'renderTo': canvas, 
+                        'chart': { 
+                            'width': 960, 
+                            'padding': 20, 
+                            'brush':{
+                                'start': chartBrushStart,
+                                'move': chartBrushMov,
+                                'end': chartBrushEnd 
+                            },        
+                            'cellsize': 150                                                        
+                        },
+                        'series': {
+                            'data': rawdata,
+                            'fields':Object.keys(rawdata[0]),
+                            'checkedFields': checkedFields,
+                            'style':{
+                                'colorBy': colorBy
+                            }                          
+                        }                        
+                    };
+
+                    var chart = new MatrixPlot(options);
+                    chart.draw();
+                }
             });
         </script>
     </body>

@@ -106,10 +106,10 @@ function AtoO(input){
 }
 function getHexPoints(AofO, cols){
     var output = AofO.map(function(entry, i){
-        return cols.map(function(col){
-            return entry[col];
-        });
-    });
+                    return cols.map(function(col){
+                        return entry[col];
+                    });
+                });
     return output;
 }
 function OtoA(input){
