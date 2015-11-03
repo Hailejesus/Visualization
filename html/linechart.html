@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <!--<script src="d3-tip/tooltip.js"></script> -->
+
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+        <link rel="stylesheet" href="../css/linechart.css">
+        
+        <script src="../js/jquery-1.11.3.js"></script>
+        <script src="../js/jquery-ui-1.11.4/jquery-ui.min.js"></script>
+
+        <script src="../js/d3.v3.min.js"></script>
+        <script src="../js/d3.tip.v0.6.3.js"></script>
+        
+        <script src="../js/util.js"></script>
+        <script src="../js/OOPd3.js"></script>
+    </head>
+
+    <body>
+        <div id="container" style="vertical-align:top;"> 
+            <div id="menu">
+                <fieldset id="mainFS" style="width:350px;">                   
+                    <fieldset id="fileFS" style="display:inline">
+                        <legend>File Attributes</legend>
+                        <div id="fileAttr">                                
+                            <fieldset id="separatorFS" style="display:inline">
+                                <legend>Separator</legend>
+                                <input type="radio" id="delimComma" name ="delimradio" value="Comma">                                       
+                                <label for="delimComma"><i class="icon">&#44;</i></label>
+
+                                <input type="radio" id="delimSemi" name="delimradio" value="Semicolon">
+                                <label for="delimSemi"><i class="icon">&#59;</i></label>
+
+                                <input type="radio" id="delimTab" name="delimradio" value="Tab">
+                                <label for="delimTab"><i class="icon">&#47;t</i></label>                              
+
+                            </fieldset>
+                            <input id="headerFlag" type="checkbox" />
+                            <label for="headerFlag">Header<i class="icon">&#63;</i></label>
+                        </div>
+                        <br /> <br />
+                        <span class="btn-file">Browse
+                            <input id="filebrowsed" type="file">                        
+                        </span>
+                    </fieldset>
+                </fieldset>
+            </div>
+            <div id='d3Chart'> </div>           
+        </div> 
+        <script>
+            var dataset, fields;
+            var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};
+
+            $('#fileAttr').buttonset();
+            $('span.btn-file').button();
+
+            $('.btn-file :file').on('fileselect', function(event) {
+                readfile(event);
+            });
+               
+            $('.btn-file :file').on('change', function() {
+                var input = $(this);
+                input.trigger('fileselect');
+            }); 
+
+            //'check' the first radio
+            $('[name="delimradio"]:first').prop('checked', true);
+            //'check' the first radio
+            $('[name="delimradio"]:first').prop('checked', true);
+            
+            function readfile(e){  //An event handler function to be called when the input control 'changes'
+                var fileobj = e.target.files[0];
+                var fr = new FileReader();
+                fr.readAsText(fileobj);
+                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+            }                 
+            function readerHandler(e){
+                /*Generate the dataset from the file and populate the menu */
+                var checked = $('[name="delimradio"]:checked');
+                delim = separators[checked[0].value]
+
+                fileContent = e.target.result;
+                
+                var headerFlag = $('#headerFlag').prop('checked');
+                
+                dataset = csvDictReader(fileContent, delim, headerFlag);
+                originalData = dataset.map(function(row){return clone(row);});
+                
+                fields = Object.keys(dataset[0]);
+                
+                var mainFS = $('#mainFS');
+                
+                mainFS.find('#fieldsFS').remove();   //clear previously rendered fieldset
+
+                var fieldsFS = $('<fieldset></fieldset>')
+                                .attr('id', 'fieldsFS').attr('class', 'fieldPile')
+                                .css({'max-height':'250px', 'overflow': 'auto'})
+                                .html('<legend>Fields</legend>').appendTo(mainFS);
+
+                var lastDragged; 
+                for(i = 0; i < fields.length; i++){
+                    /*Fill the list of fields*/
+                    field = fields[i];
+                    $('<div>' + field + '</div>')
+                        .data('field', field)
+                        .attr('id', field)
+                        .attr('class', 'draggable roundcorner')
+                        .appendTo(fieldsFS)
+                        .draggable({
+                            revert: true,  revertDuration:0, helper:'clone', stack: '#fieldsFS div', cursor: 'move', 
+                            snap:'.axisSlot', snapMode:'inner', snapTolerance:30,
+                            start: function(event, ui){
+                                lastDragged = $(this).parent();
+                            }
+                            });
+                }
+
+                mainFS.find('#chartOptFS').remove();    //clear previously rendered fieldset
+                var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS')
+                                    .appendTo(mainFS);
+
+                $('<legend>Chart Options</legend>').appendTo(chartOptFS);
+                
+                var axes = ['xAxis', 'yAxis'];
+                var xAxisPile= $('<div></div>').data('axis', axes[0])
+                                    .attr('class', 'axisPile')
+                                    .html('<h4>'+axes[0]+'</h4>')
+                                    .appendTo('#chartOptFS');
+
+                var yAxisPile= $('<div></div>').data('axis', axes[1])
+                                    .attr('class', 'axisPile')
+                                    .html('<h4>'+axes[1]+'</h4>')
+                                    .appendTo('#chartOptFS');
+
+                $('<div></div>').appendTo(xAxisPile).attr('id', 'xAxis')
+                        .attr('class', 'field axisSlot roundcorner')
+                        .droppable({
+                            accept: '.draggable', 
+                            hoverClass: 'hovered',
+                            drop: handleFieldDrop
+                        });
+
+                $('<div></div>').appendTo(yAxisPile).attr('id', 'yAxis')
+                        .attr('class', 'field axisSlot roundcorner')
+                        .droppable({
+                            accept: '.draggable', 
+                            hoverClass: 'hovered',
+                            drop: handleFieldDrop,
+                        });
+                $('fieldset').addClass('roundcorner'); 
+                function handleFieldDrop(event, ui){
+                    var dropped = ui.draggable;
+                    var droppedOn = this;
+                    /*When the droppable already has a draggable, revert the previous*/
+                    if($(droppedOn).children().length > 0){
+                        $(droppedOn).children().detach().prependTo($(lastDragged));
+                    }
+
+                    $(dropped).detach().css({
+                        top: 0,
+                        left: 0
+                    }).prependTo($(droppedOn));
+                }
+                
+                $('<br />').appendTo(chartOptFS); 
+                $('<input />').appendTo(chartOptFS)
+                        .attr('type', 'text').attr('id', 'txtwidth')
+                        .attr('placeholder', 'Chart Width')
+                
+                $('<input />').appendTo(chartOptFS)
+                        .attr('type', 'text').attr('id', 'txtheight')
+                        .attr('placeholder', 'Chart Height')
+                
+                var btnPlot = $('<button></button>').appendTo(chartOptFS)
+                        .attr('id', 'btnPlot').attr('class', 'btn btn-default')
+                        .html('Plot').on('click', draw);                
+                
+                /*Clear chart and stat areas*/
+                $('#d3Chart').html('');
+                $('#statDiv').css('opacity', 0);
+            }
+            function draw(){
+                var axes = {};
+                var droppables = $('.axisSlot');
+                $.each(droppables, function(idx, d){    /*Get the x and y axes names*/
+                    if($(d).children().length > 0){
+                        var axis = $(d).attr('id');
+                            var axisName = $($(d).children()[0]).attr('id');
+                            axes[axis] = axisName;
+                        
+                        }
+                });
+                var xaxisName = axes['xAxis'], yaxisName = axes['yAxis'];
+
+                if(xaxisName && yaxisName){   
+                    $('#d3Chart').html('');
+                    $('#statDiv').css('opacity', 0);
+
+                    var w1 = 800; //width
+                    var h1 = 400; //height
+
+                    var margin  = {top: 20, right: 20, bottom: 40, left: 60}
+                    var width   = w1 - margin.left - margin.right;
+                    var height  = h1 - margin.top - margin.bottom;
+                    var padding = 0;
+
+                    var column_x = 0;
+                    var column_y = 3;
+                    var column_c = 0;
+                    var column_s = 0;
+
+                    var column_t = 0;
+                    var xOffset = 0;          //offset of graph and axis from right
+                    var yOffset = 20;         //offset of graph and axis from top
+
+                    var xa_start = 0;   //offset of left axis and graph
+                    var ya_start = 0;   //offset of bottom axis and graph
+                    var shift_ax = 0;   //translate bottom axis 
+                    var shift_ay = 0;   //translate left axis
+
+                    var legend_x  = 45;
+                    var legend_y  = 20;
+
+                    var text_padding_axx = width/2 - margin.right;
+                    var text_padding_axy = 35;
+
+                    var text_padding_ayx = 40;
+                    var text_padding_ayy = height/2;
+
+                    var title_x = width/2;
+                    var title_y = 10;
+
+                    var gap  = 1;
+
+                    var show_title = "no";     //yes or no
+
+                    var xdelta = 1.0;
+                    var ydelta = 1.2;
+    
+                    var headerNames = d3.keys(dataset[0]);        
+                    var keys = Object.keys(dataset[0]);          
+
+                    var xLabel = xaxisName;// Object.keys(dataset[0])[column_x];
+                    var yLabel = yaxisName;// Object.keys(dataset[0])[column_y];
+                    var tLabel = xaxisName + ' vs ' + yaxisName;// Object.keys(dataset[0])[column_t];
+
+                    //var xValue = function(d) { return d[keys[column_x]] };                
+                    //var yValue = function(d) { return d[keys[column_y]] };          
+
+                    //If the data contains some nonnumber values
+                    dataset.forEach(function(d,i) {
+                        keys.forEach(function(key,i){
+                            orig    = d[key];
+                            modified  = Number(orig);
+                            d[key]    = (typeof orig === "string" && !isNaN(modified)) ? modified : orig;          
+                        });
+                     });
+                    
+                    var xMinMax = d3.extent(dataset, function(d){return d[xaxisName];});
+                    var yMinMax = d3.extent(dataset, function(d){return d[yaxisName];});
+
+                    var xScale = d3.scale.linear()
+                        .domain(xMinMax.map(function(value){return xdelta*value;}))
+                        //.domain([xdelta*d3.min(dataset, xValue), xdelta*d3.max(dataset, xValue)])
+                        .range([xa_start, width - xOffset]).nice();
+
+                    var yScale = d3.scale.linear()
+                        .domain(yMinMax.map(function(value){return ydelta*value;}))
+                        //.domain([ydelta*d3.min(dataset, yValue), ydelta*d3.max(dataset, yValue)])
+                        .range([height - ya_start, yOffset]).nice();
+
+                    var xAxis = d3.svg.axis().scale(xScale).orient("bottom")
+                        .outerTickSize( -height + yOffset - gap)
+
+                    var yAxis = d3.svg.axis().scale(yScale).orient("left")
+                        .outerTickSize( -width + xOffset)
+
+                    var zoom = d3.behavior.zoom().x(xScale).y(yScale).scaleExtent([1, 50]).on("zoom", zoomed);
+
+                    var mySvg = d3.select("#d3Chart").append("svg").attr("id","chart").call(zoom)
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+
+                    mySvg.append("g").classed("x axis", true)  
+                        .attr("transform", "translate(0," + (height - shift_ax) + ")")
+                        .call(xAxis).append("text")
+                        .attr("y", text_padding_axy).attr("x", text_padding_axx)
+                        .style("font-family", "sans-serif").style("font-size", "12px")
+                        .style("font-weight", "bold").style("fill", "black")
+                        .style("text-anchor", "middle").text(function(){ return xLabel});
+
+                    mySvg.append("g").classed("y axis", true)  
+                        .attr("transform", "translate(" + shift_ay + ",0)")
+                        .call(yAxis).append("text").attr("class", "label")
+                        .attr("transform", "rotate(-90)")
+                        .attr("y", - text_padding_ayx ).attr("x", - text_padding_ayy)
+                        .style("font-family", "sans-serif").style("font-size", "12px")
+                        .style("font-weight", "bold").style("fill", "black")
+                        .style("text-anchor", "middle").style("text-anchor", "middle")
+                        .text(function(){ return yLabel});
+        
+                    if (show_title == "yes"){
+                        mySvg.append("text")
+                            .attr("x", title_x ).attr("y", title_y)
+                            .attr("text-anchor", "middle").attr("font-family", "sans-serif")
+                            .attr("font-size", "20px").attr("font-weight", "bold")
+                            .attr("fill", "black").text(function(){return tLabel});
+                    }
+                    mySvg.append("clipPath").attr("id", "clip")
+                        .append("rect").attr("width", width).attr("x", 0).attr("y", yOffset)
+                        .attr("width", width - xOffset).attr("height", height - yOffset)
+
+                    var line = d3.svg.line()
+                        .interpolate("basis")
+                        .x(function(d) { return xScale(d[xaxisName]); })
+                        .y(function(d) { return yScale(d[yaxisName]); });
+          
+                    mySvg.append("path").datum(dataset)
+                        .attr("class", "line").attr("clip-path", "url(#clip)")
+                        .attr("d", line).style("stroke","steelblue")
+                        .style("stroke-width",1).style("stroke-dasharray", ("8, 0")) 
+                }
+                function zoomed() {
+                    mySvg.select(".x.axis").call(xAxis);
+                    mySvg.select(".y.axis").call(yAxis);
+                    mySvg.selectAll('path.line').attr('d', line);
+                }
+            }
+        </script>
+    </body>
+</html>

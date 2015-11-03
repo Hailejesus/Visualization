@@ -126,6 +126,7 @@ ScatterPlot.prototype.redraw = function(data, redrawNav){
         self.drawNav();
      }
 }
+
 var MatrixPlot = function (options){
     var MatrixPlot = this;
     MatrixPlot.options = options;
@@ -135,7 +136,8 @@ var MatrixPlot = function (options){
     MatrixPlot.data = options.series.data || [];                              //An array of JS object literals
     MatrixPlot.fields = options.series.fields || [];                          //An array of strings
     MatrixPlot.checkedFields = options.series.checkedFields;                   //An array of strings
-    
+    MatrixPlot.colorBy = options.series.style.colorBy 
+    MatrixPlot.sizeBy = options.series.style.sizeBy;
     MatrixPlot.domainByField = {};
     MatrixPlot.checkedFields.forEach(function(field) {//The minimum and maximum values corresponding to a field
         MatrixPlot.domainByField[field] = d3.extent(MatrixPlot.data, function(d){
@@ -156,21 +158,34 @@ var MatrixPlot = function (options){
     MatrixPlot.xScale = d3.scale.linear().range([MatrixPlot.padding / 2, MatrixPlot.cellsize - MatrixPlot.padding / 2]);
     MatrixPlot.yScale = d3.scale.linear().range([MatrixPlot.cellsize - MatrixPlot.padding / 2, MatrixPlot.padding / 2]);
     MatrixPlot.xAxis = d3.svg.axis().scale(MatrixPlot.xScale).orient("bottom").ticks(5);
-    MatrixPlot.yAxis = d3.svg.axis().scale(MatrixPlot.yScale).orient("left") .ticks(5);    
+    MatrixPlot.yAxis = d3.svg.axis().scale(MatrixPlot.yScale).orient("left") .ticks(5);   
 }
 MatrixPlot.prototype.draw = function(){
     var MatrixPlot = this;
     var n = MatrixPlot.checkedFields.length;    //The number of checked fields, i.e., n rows each containing n cells
     var color = d3.scale.category10();
+    var size;
+
+    var sizeBy = MatrixPlot.sizeBy;
+    if(sizeBy){
+        var sizeCategory = []
+        MatrixPlot.data.forEach(function(d, i){
+            sizeCategory[d[sizeBy]] = 0;
+        });
+        var sizes = Object.keys(sizeCategory);
+        var ranges = sizes.map(function(s, i){return i + 3;});
+
+        size = d3.scale.ordinal().domain(sizes).range(ranges);
+    }
 
     MatrixPlot.xAxis.tickSize(MatrixPlot.cellsize * n)
     MatrixPlot.yAxis.tickSize(-MatrixPlot.cellsize * n)
 
     /*Specify the dimension of the canvas*/    
     MatrixPlot.canvas.attr("width", MatrixPlot.cellsize * n + MatrixPlot.padding)
-            .attr("height", MatrixPlot.cellsize * n + MatrixPlot.padding)
+        .attr("height", MatrixPlot.cellsize * n + MatrixPlot.padding)
         .append('g')
-            .attr('transform', 'translate(' + MatrixPlot.padding + ',' + MatrixPlot.padding / 2 + ')');   
+        .attr('transform', 'translate(' + MatrixPlot.padding + ',' + MatrixPlot.padding / 2 + ')');   
     
     /*Setup x axes*/   
     MatrixPlot.canvas.selectAll('.x.axis')
@@ -196,9 +211,7 @@ MatrixPlot.prototype.draw = function(){
         .data(MatrixPlot.cross(MatrixPlot.checkedFields, MatrixPlot.checkedFields))
         .enter().append("g").attr("class", "cell")
         .attr("transform", function(d) { return "translate(" + (n - d.i - 1) * MatrixPlot.cellsize + "," + d.j * MatrixPlot.cellsize + ")"; })
-        .each(function(p, i){
-            /*Plot each cell
-            */
+        .each(function(p, i){          
             var cell = d3.select(this);
 
             MatrixPlot.xScale.domain(MatrixPlot.domainByField[p.x]);
@@ -211,12 +224,9 @@ MatrixPlot.prototype.draw = function(){
                 .enter().append("circle")
                 .attr("cx", function(d) { return MatrixPlot.xScale(d[p.x]); })
                 .attr("cy", function(d) { return MatrixPlot.yScale(d[p.y]); })
-                .attr("r", 3).style("fill", function(d) { return 'maroon';/*color(d.species)*/  });     
-
-            //MatrixPlot.chartBrush(d3.select(this), MatrixPlot)                           
-            //cell.call(MatrixPlot.chartBrush, MatrixPlot)
-        });
-
+                .attr("r", function(d){return size ? (size(d[MatrixPlot.sizeBy])) : 3; })
+                .style("fill", function(d) { return MatrixPlot.colorBy ? (color(d[MatrixPlot.colorBy])) : "maroon";  });            
+        });    
 
     // Titles for the diagonal.
     MatrixPlot.cell.filter(function(d) { return d.i === d.j; }).append("text")
@@ -234,7 +244,6 @@ MatrixPlot.prototype.draw = function(){
 
     d3.select(self.frameElement).style("height", MatrixPlot.cellsize * n + MatrixPlot.padding + 20 + "px");
 }
-
 MatrixPlot.prototype.cross = function(a, b) {
     var c = [], n = a.length, m = b.length, i, j;
     /*

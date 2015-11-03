@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+        <link rel="stylesheet" href="../css/boxplot.css" >
+
+        <script src="../js/jquery-1.11.3.js"></script>
+        <script src="../js/jquery-ui-1.11.4/jquery-ui.min.js"></script>
+
+        <script src="../js/d3.v3.min.js"></script>
+        <script src="../js/d3.tip.v0.6.3.js"></script>
+        <script src="../js/d3.hexbin.min.js"></script>
+        <script src="../js/d3-legend.min.js"></script>
+        
+        <script src="../js/util.js"></script>
+        <script src="../js/OOPd3.js"></script>
+    </head>
+    <body>
+        <div id="container" style="vertical-align:top;"> 
+            <div id="menu">
+                <fieldset id="mainFS" style="width:350px;">                   
+                    <fieldset id="fileFS" style="display:inline">
+                        <legend>File Attributes</legend>
+                        <div id="fileAttr">                                
+                            <fieldset id="separatorFS" style="display:inline">
+                                <legend>Separator</legend>
+                                <input type="radio" id="delimComma" name ="delimradio" value="Comma">                                       
+                                <label for="delimComma"><i class="icon">&#44;</i></label>
+
+                                <input type="radio" id="delimSemi" name="delimradio" value="Semicolon">
+                                <label for="delimSemi"><i class="icon">&#59;</i></label>
+
+                                <input type="radio" id="delimTab" name="delimradio" value="Tab">
+                                <label for="delimTab"><i class="icon">&#47;t</i></label>                             
+
+                            </fieldset>
+                            <input id="headerFlag" type="checkbox" />
+                            <label for="headerFlag">Header<i class="icon">&#63;</i></label>
+                        </div>
+                        <br /> <br />
+                        <span class="btn-file">Browse
+                            <input id="filebrowsed" type="file">                        
+                        </span>
+                    </fieldset>
+                </fieldset>
+            </div>
+            <div id='d3Chart'> </div>           
+        </div>
+        <script>
+            var dataset, field;
+            var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};
+
+            $('#fileAttr').buttonset();
+            $('span.btn-file').button();
+
+            $('.btn-file :file').on('fileselect', function(event) {
+                readfile(event);
+            });
+               
+            $('.btn-file :file').on('change', function() {
+                var input = $(this);
+                input.trigger('fileselect');
+            }); 
+
+            //'check' the first radio
+            $('[name="delimradio"]:first').prop('checked', true);
+            var margin = {top: 20, bottom: 20, left:20, right: 20};
+
+            function readfile(e){  //An event handler function to be called when the input control 'changes'
+                var fileobj = e.target.files[0];
+                var fr = new FileReader();
+                fr.readAsText(fileobj);
+                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+            } 
+            function readerHandler(e){
+                /*Generate the dataset from the file and populate the menu */
+                var checked = $('[name="delimradio"]:checked');
+                var delim = separators[checked[0].value]
+
+                var fileContent = e.target.result;
+                
+                var headerFlag = $('#headerFlag').prop('checked');
+                
+                dataset = csvDictReader(fileContent, delim, headerFlag);
+                           
+                fields = Object.keys(dataset[0]);
+                /*Make sure the field names are not empty*/
+                fields = fields.filter(function(field){return field.trim().length;})
+
+                var nFields = [], sFields = []; //arrays of numbers and strings, respectively;
+                var d = dataset[0];
+                fields.forEach(function(key){
+                    typeof d[key] === "string"? sFields.push(key): nFields.push(key)
+                });              
+
+                var mainFS = $('#mainFS');                    
+                mainFS.children().not('#fileFS').remove();      //Clear previously rendered children except '#fileFS'
+
+                var fieldsFS = $('<fieldset></fieldset>')
+                                .attr('id', 'fieldsFS').attr('class', 'fieldPile')
+                                .css({'max-height':'250px', 'overflow': 'auto'})
+                                .html('<legend>Fields</legend>').appendTo(mainFS);                                 
+                                 
+                /*create the labels followed by the radiobuttons*/
+                fieldsFS.append(function(){                       
+                        var html = [];
+                        nFields.forEach(function(field){                             
+                            html.push('<input type="radio" id="' + field + '" name="fieldradio" value="' + field +'"/>');
+                            html.push('<label for="' + field + '">' + field + '</label>');
+                        });                           
+                        return html.join(''); 
+                }).buttonset();                       
+                   
+
+                var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS').appendTo(mainFS);
+
+                $('<legend>Chart Options</legend>').appendTo(chartOptFS);                   
+            
+             
+                $('fieldset').addClass('roundcorner');               
+
+                $('<button>')
+                    .appendTo(mainFS).attr('id', 'btnPlot').attr('type', 'submit')
+                    .attr('class', 'btn btn-default').text('Plot').on('click', draw)
+            
+                $('#d3Chart').html('');
+                $('#statDiv').css('opacity', 0);
+            }
+            function draw(){
+                var field = $('input[name="fieldradio"]:checked').val();
+                if(field){             
+                    $('#d3Chart').html('');
+                    $('#statDiv').css('opacity', 0);
+                    
+                    var w1 = 600
+                    var h1 = 150
+                    var width = w1 - margin.left - margin.right;
+                    var height = h1 - margin.top - margin.bottom;
+                    var padding = 30;
+
+                    var shift_box = -5
+                    var midline = height/2 + shift_box;
+
+
+                    var cir_r = 2.5;
+
+                    //column to sample in the input data
+                    var column_sample = 1;
+
+                    //column to use as title 
+                    var column_t = column_sample;
+
+                    var cir_opacity = 1;
+                    var whiskerheight = 30;
+                    var boxheight = 60;
+                    var medianheight = boxheight/2;
+
+                    //Add some offset
+                    var xOffset = 10;     	//offset of graph and axis from right gives space for legend or something else
+                    var yOffset = 0;     	//offset of graph and axis from top
+
+                    var xa_start = 0;		//offset of left axis and graph
+                    var ya_start = 0;		//offset of bottom axis and graph
+                    var shift_ax = 0;		//translate bottom axis 
+                    var shift_ay = 0;		//translate left axis
+
+
+                    //Start and end of clipping
+                    var xc_begin  = 0;
+                    var xc_Offset = 0;			//usually same as xOffSet if you want to clip to the end of the axis
+                    var xc_end 	  = xc_Offset + xc_begin;
+                    var yc_begin  = 0;
+                    var yc_Offset = 0;			//usually same as yOffSet if you want to clip to the ens of the axis
+                    var yc_end 	  = yc_Offset + yc_begin;
+                    //Start and end of clipping
+
+                    var legend_x  = 45;
+                    var legend_y  = 20;
+
+
+                    //x label position
+                    var text_padding_axx = width/2 - margin.right;
+                    var text_padding_axy = 35;
+                    //x label position
+
+                    //y label position
+                    var text_padding_ayx = 45;
+                    var text_padding_ayy = height/2;
+                    //y label position
+
+
+                    //title position
+                    var title_x = width/2 - (margin.left + margin.right)/2;
+                    var title_y = 30;
+                    //title position
+
+                    //add jitter to the circle distribution
+                    var jitter="yes";    //yes or no
+                    var jitter_width = 20;    
+
+
+                    //outliers color
+                    var color_outlier = "crimson";
+                    var show_only_outliers = "no";     //To only show outliers, yes or no
+
+
+                    //box legend attributes
+                    var bl_color = "teal"
+                    var bl_dy = "15px"      	//relative spacing in y
+                    var bl_dy1 = "-6px"     	//relative spacing in y
+                    var bl_fs = "10px"      	//font size
+                    var bl_f = " "        		//number format, use " " to disable thousond separator
+                    var sbpl = "yes"        	//show boxplot legend yes/no
+
+                    //axes number format
+                    var a_f = ".d"        		
+
+                    //initialize boxplot statistics
+                    var data = [];
+                    var outliers = [];
+                    var minVal = Infinity;
+                    var lowerWhisker = Infinity;
+                    var q1Val = Infinity;
+                    var medianVal = 0;
+                    var q3Val = -Infinity;
+                    var iqr = 0;
+                    var upperWhisker = -Infinity;
+                    var maxVal = -Infinity;
+
+                
+                    var headerNames = field;        	
+                    var keys = Object.keys(dataset[0]); 
+
+                    //get id of header to plot as title and axis name
+                    var xLabel = field;     //Object.keys(dataset[0])[column_sample];
+                    var tLabel = field;     //Object.keys(dataset[0])[column_t];
+
+                    //var mapdata = dataset.map(function(d,i) { return d[keys[column_sample]]; });
+                    var mapdata = AtoO(dataset)[field];
+                    data = mapdata.sort(d3.ascending);
+
+                    var minVal = data[0];
+                    var maxVal = data[data.length - 1];
+                    var q1Val = d3.quantile(data, .25);
+                    var medianVal = d3.quantile(data, .5);
+
+                    //q3 75%  
+                    //there is a small deviation computing this quartile
+                    //0.75 does not correponds exactly to my test cases
+                    //round off?
+                      var q3Val = d3.quantile(data, .75);
+
+                    //inter quartile range
+                    var iqr = q3Val - q1Val;
+
+
+                    //lower and upper whiskers
+
+                    //Attention, when outliers are present it gives a small
+                    //deviation from python benchmark
+                    //This is related to iqr deviation
+                      // minVal = 180;  //Test value, do not use in production
+                    var lowerWhisker = d3.max([minVal, q1Val - 1.5*iqr]);
+                    var upperWhisker = d3.min([maxVal, q3Val + 1.5*iqr]);
+
+
+                    var tip = d3.tip() .attr('class', 'd3-tip') .offset([-10, -0])
+                      .html(function(d) {
+                            return "<span style='color:white;font-size:10px'>" 
+                                    + Object.keys(dataset[0])[column_sample] + 
+                                    "</span> <span style='color:red;font-size:10px'>" 
+                                    + d[keys[column_sample]] + "</span>";
+                      })
+
+                    var xScale = d3.scale.linear().domain([minVal*1.0,maxVal*1.0]).range([xa_start, width - xOffset]).nice();                                   
+                    var smin = xScale.domain()[0];
+                    var smax = xScale.domain()[1];
+
+                    var xAxis = d3.svg.axis().scale(xScale).orient("bottom").tickFormat(d3.format(a_f))
+
+                    var mySvg = d3.select("#d3Chart").append("svg").attr("id", "chart")                            					
+                              .attr("width", width + margin.left + margin.right)              	
+                              .attr("height", height + margin.top + margin.bottom)            	
+                              .append("g")                                
+                              .attr("transform", "translate("+ (margin.left + 0*margin.right) + ",0)")        	
+
+                    var group = mySvg.append("g").classed("axis", true)
+                                .attr("transform", "translate(0," + (height - shift_ax) + ")")  
+                                .call(xAxis).append("text")
+                                .attr("y", text_padding_axy ).attr("x", text_padding_axx )
+                                .style("font-family", "sans-serif").style("font-size", "12px")
+                                .style("font-weight", "bold").style("fill", "black")
+                                .style("text-anchor", "middle")
+                                .text(function(){ return xLabel});
+
+                    //draw verical line for lowerWhisker
+                    var lw = mySvg.append("line").classed("whisker", true)
+                            .attr("x1", xScale(lowerWhisker)).attr("x2", xScale(lowerWhisker))
+                            .attr("stroke", "black")
+                            .attr("y1", midline - whiskerheight).attr("y2", midline + whiskerheight)
+
+                    //draw vertical line for upperWhisker
+                    var uw = mySvg.append("line").classed("whisker", true)
+                            .attr("x1", xScale(upperWhisker)).attr("x2", xScale(upperWhisker))
+                            .attr("stroke", "black")
+                            .attr("y1", midline - whiskerheight).attr("y2", midline + whiskerheight)
+
+                    //draw horizontal line from lowerWhisker to upperWhisker
+                    var whl = mySvg.append("line").classed("whiskers_hline", true)
+                            .attr("x1",  xScale(lowerWhisker)).attr("x2",  xScale(upperWhisker))
+                            .attr("stroke", "black")
+                            .attr("y1", midline).attr("y2", midline)
+                            .style("stroke-dasharray", ("10, 5"))
+
+                    //draw rectangle for iqr
+                    var box = mySvg.append("rect").classed("box", true)
+                            .attr("stroke", "black").attr("fill", "white")
+                            .attr("x", xScale(q1Val)).attr("y", midline - boxheight/2 )
+                            .attr("width", xScale(smin + iqr)).attr("height", boxheight)
+
+                    //draw vertical line for q1 hisker
+                    mySvg.append("line").classed("whisker", true)
+                            .attr("x1", xScale(q1Val)).attr("x2", xScale(q1Val))
+                            .attr("y1", midline - medianheight).attr("y2", midline + medianheight)
+                            .style("stroke", "orange").style("stroke-width", 2)
+
+                    //draw vertical line for q3 whisker
+                    mySvg.append("line").classed("whisker", true)
+                            .attr("x1", xScale(q3Val)).attr("x2", xScale(q3Val))
+                            .attr("y1", midline - medianheight).attr("y2", midline + medianheight)
+                            .style("stroke", "orange").style("stroke-width", 2)
+
+                    //draw vertical line at median
+
+                    var medianvl = mySvg.append("line")
+                        //.attr("class", "median")
+                        .classed("median", true)
+                            .attr("stroke", "black")
+                            .attr("x1", xScale(medianVal))
+                            .attr("x2", xScale(medianVal))
+                            .attr("y1", midline - medianheight)
+                            .attr("y2", midline + medianheight)
+                    
+                    //draw data as points
+                    var circles = mySvg.selectAll("circle").data(dataset)     
+                        .enter()
+                            .append("circle").attr("r", cir_r).attr("opacity", cir_opacity)
+                            .attr("class", function(d) {
+                                if (d[keys[column_sample]]< lowerWhisker || d[keys[column_sample]]> upperWhisker)
+                                    return "outlier";
+                                else if (show_only_outliers == "yes"){
+                                  return "point_invisible";
+                                }else {
+                                  return "point";
+                                }
+                            })
+                            .attr("cx", function(d) { return xScale(d[keys[column_sample]]);})
+                            .attr("cy", function(d) { 
+                                //console.log(random_jitter);
+                                if(jitter == "yes"){
+                                    if(Math.round(Math.random() * 1) == 0)
+                                        var seed = -jitter_width;
+                                    else
+                                        var seed = jitter_width; 
+
+                                    return midline + Math.floor((Math.random() * seed) + 0);
+
+                                }
+                                else{
+                                    return midline;
+                                }
+                            }) 
+                      
+                    mySvg.call(tip)  
+
+                    circles.on('mouseover', tip.show).on('mouseout', tip.hide)
+
+                    if (sbpl=="yes") {
+                        mySvg.append("text").attr("x", xScale(lowerWhisker))
+                            .attr("y", midline + boxheight/2).attr("dy", bl_dy)
+                            .style("text-anchor", "middle").style("font-family", "sans-serif")
+                            .style("font-size", bl_fs).style("fill", bl_color)
+                            .text(function(){return d3.format(bl_f)(lowerWhisker)});
+
+                        mySvg.append("text").attr("x", xScale(upperWhisker) )
+                            .attr("y", midline + boxheight/2).attr("dy", bl_dy)
+                            .style("text-anchor", "middle").style("font-family", "sans-serif")
+                            .style("font-size", bl_fs).style("fill", bl_color)
+                            .text(function(){return d3.format(bl_f)(upperWhisker)});
+
+                        mySvg.append("text").attr("x", xScale(medianVal) )
+                            .attr("y", midline + boxheight/2).attr("dy", bl_dy)
+                            .style("text-anchor", "middle").style("font-family", "sans-serif")
+                            .style("font-size", bl_fs).style("fill", bl_color)
+                            .text(function(){return d3.format(bl_f)(medianVal)});
+
+                        mySvg.append("text").attr("x", xScale(q1Val) )
+                            .attr("y", midline - boxheight/2).attr("dy", bl_dy1)
+                            .style("text-anchor", "middle").style("font-family", "sans-serif")
+                            .style("font-size", bl_fs).style("fill", bl_color)
+                            .text(function(){return d3.format(bl_f)(q1Val)});
+
+                        mySvg.append("text").attr("x", xScale(q3Val) )
+                            .attr("y", midline - boxheight/2).attr("dy", bl_dy1)
+                            .style("text-anchor", "middle") .style("font-family", "sans-serif")
+                            .style("font-size", bl_fs).style("fill", bl_color)
+                            .text(function(){return d3.format(bl_f)(q3Val)});
+                    }              
+                    
+                    function random_jitter(){
+                        if(jitter == "yes"){
+                            if(Math.round(Math.random() * 1) == 0)
+                                var seed = -jitter_width;
+                            else
+                                var seed = jitter_width; 
+
+                            return midline + Math.floor((Math.random() * seed) + 0);
+
+                        }
+                        else{
+                            return midline;
+                        }
+                    }
+
+                    function mover(d) {
+                        var cir_sel = d3.select(this).transition().duration(10) 
+                            .style("fill", "orange").style("fill-opacity", 1)
+                            .attr("r", cir_r + 2);
+                    }
+
+                    function mout(d) { 
+                        var cir_sel = d3.select(this).transition().duration(1000)
+                          .style("fill", function(d) { return color_outlier; })
+                          .attr("r", cir_r );
+                    }
+                    
+                    /*//Jitter function
+                    if (jitter=="yes"){
+                        function random_jitter() {
+                            if(Math.round(Math.random() * 1) == 0)
+                                var seed = -jitter_width;
+                            else
+                                var seed = jitter_width; 
+
+                            return midline + Math.floor((Math.random() * seed) + 0);
+                        }
+                    }else{
+                        function random_jitter() { return midline; } 
+                    }*/
+                }
+            }
+        </script>	
+    </body>
+</html>

@@ -10,61 +10,81 @@
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>-->
        
-            <!-- ############## LOCAL RESOURCES  ############### -->
-        <link href="http://code.jquery.com/ui/1.10.4/themes/ui-lightness/jquery-ui.css" rel="stylesheet">
-        <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
-        <script src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+            <!-- ############## LOCAL RESOURCES  ############### -->     
 
-        <!-- <script type="text/javascript" src="../js/jquery-1.11.3.js"></script>-->
-  
-        <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
-        <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
+        <!--<link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+        <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+        <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>-->
+
+
+        <!-- <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
+        <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> -->
         
         <!--<script type="text/javascript" src="../js/d3.v3.min.js"></script>-->
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
         
-        <script type="text/javascript" src="../js/d3.js"></script>
-
-        <script type="text/javascript" src="../js/util.js"></script>
-        <script type="text/javascript" src="../js/OOPd3.js"></script>
+        
+        <!--<link rel="stylesheet" href =" ../js/jquery-ui-1.11.4/jquery-ui.min.css" />      -->
         <link rel="stylesheet" href="../css/scattermatrix.css" />
+
+        <script src="../js/jquery-1.11.3.js"></script>
+        <script src="../js/jquery-ui-1.11.4/jquery-ui.min.js"></script>
+                
+        <script src="../js/d3.js"></script>
+        <script src="../js/util.js"></script>
+        <script src="../js/OOPd3.js"></script>
+        <style>
+            circle.hide{
+                 fill: #ccc !important;
+                 /*fill:"red";
+                 fill-opacity:1;*/
+            };
+            i.icon{
+                font-size: 100px;
+            }
+        </style>
     </head>
     <body>
-        <div id="container" class="content"> 
+        <div id="container" style="vertical-align:top;"> 
             <div id="menu">
-                <fieldset id="mainFS" style="width:350px;">
+                <fieldset id="mainFS" style="width:350px;">                   
                     <fieldset id="fileFS" style="display:inline">
                         <legend>File Attributes</legend>
-                        <fieldset id="separatorFS" style="display:inline">
-                               <legend>Separator</legend>
-                               <label class="radio-inline"><input type="radio" name="delimradio" value="Comma">Comma</label>
-                               <label class="radio-inline"><input type="radio" name="delimradio" value="Semicolon">Semicolon</label>
-                               <label class="radio-inline"><input type="radio" name="delimradio" value="Tab">Tab</label> 
-                        </fieldset>
-                         <label class="checkbox-inline">
-                            <input id="headerFlag" type="checkbox" />Has Header
-                        </label>
-                        <span class="btn btn-default btn-file">
-                            Browse <input id="filebrowsed" type="file">
+                        <div id="fileAttr">                                
+                            <fieldset id="separatorFS" style="display:inline">
+                                <legend>Separator</legend>
+                                <input type="radio" id="delimComma" name ="delimradio" value="Comma">                                       
+                                <label for="delimComma"><i class="icon">&#44;</i></label>
+
+                                <input type="radio" id="delimSemi" name="delimradio" value="Semicolon">
+                                <label for="delimSemi"><i class="icon">&#59;</i></label>
+
+                                <input type="radio" id="delimTab" name="delimradio" value="Tab">
+                                <label for="delimTab"><i class="icon">&#47;t</i></label>                              
+
+                            </fieldset>
+                            <input id="headerFlag" type="checkbox" />
+                            <label for="headerFlag">Header<i class="icon">&#63;</i></label>
+                        </div>
+                        <br /> <br />
+                        <span class="btn-file">Browse
+                            <input id="filebrowsed" type="file">                        
                         </span>
                     </fieldset>
                 </fieldset>
             </div>
             <div id='d3Chart'> </div>
-            <div id="statDiv" style="position:absolute;box-shadow: 10px 10px 5px #888888;"></div>
+            <!--<div id="statDiv" style="position:absolute;box-shadow: 10px 10px 5px #888888;"></div>-->
         </div>
-        <style>
-            circle.hide{
-                 /*fill: #ccc !important;*/
-                 fill:"red";
-                 fill-opacity:1;
-            }
-        </style>
+        
 
         <script type="text/javascript">
             $(document).ready(function(event){            
                 var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};   
-                var colorBy;              
-              
+                              
+                $('#fileAttr').buttonset();
+                $('span.btn-file').button();
+
                 $('.btn-file :file').on('fileselect', function(event) {
                     readfile(event);
                 });
@@ -73,6 +93,9 @@
                     var input = $(this);
                     input.trigger('fileselect');
                 }); 
+
+                //'check' the first radio
+                $('[name="delimradio"]:first').prop('checked', true);
 
                 function readfile(e){  //An event handler function to be called when the input control 'changes'
                     var fileobj = e.target.files[0];
@@ -92,52 +115,43 @@
                     rawdata = csvDictReader(fileContent, delim, headerFlag);
                     originalData = rawdata.map(function(row){return clone(row);});
                     
+                    fields = Object.keys(rawdata[0]);
+                    /*Make sure the field names are not empty*/
+                    fields = fields.filter(function(field){return field.trim().length;})
+
                     var nFields = [], sFields = []; //arrays of numbers and strings, respectively;
                     var d = rawdata[0];
-                    for (key in d){
+                    fields.forEach(function(key){
                         typeof d[key] === "string"? sFields.push(key): nFields.push(key)
-                    }                 
-                    
-                    fields = Object.keys(rawdata[0]);
+                    });              
 
-                    var mainFS = $('#mainFS');
-                    
-                    mainFS.find('#fieldsFS').remove();   //clear previously rendered fieldset
+                    var mainFS = $('#mainFS');                    
+                    mainFS.children().not('#fileFS').remove();      //Clear previously rendered children except '#fileFS'
 
                     var fieldsFS = $('<fieldset></fieldset>')
                                     .attr('id', 'fieldsFS').attr('class', 'fieldPile')
                                     .css({'max-height':'250px', 'overflow': 'auto'})
-                                    .html('<legend>Fields</legend>').appendTo(mainFS);                 
+                                    .html('<legend>Fields</legend>').appendTo(mainFS);                                     
                     
-                    
-                    var numericFS = $('<fieldset></fieldset>').attr('id', 'numericFS')                    
-                                        .appendTo(fieldsFS);
-                    $('<legend>Numeric</legend>').appendTo(numericFS);
-
-                    /*Populate checkboxes with fields names */   
-                    numericFS.buttonset();
+                    var numericFS = $('<fieldset></fieldset>').attr('id', 'numericFS').appendTo(fieldsFS);
+                                     
+                    /*create the labels followed by the checkboxes*/
                     numericFS.append(function(){                       
                             var html = [];
-                            nFields.forEach(function(field){                               
-                                html.push('<input type="checkbox" id="' + field + '" value="' + field +'"><label for="' + field + '">' + field + '</label>');
+                            html.push('<legend>Numeric</legend>')
+                            nFields.forEach(function(field){                             
+                                html.push('<input type="checkbox" id="' + field + '" value="' + field +'"/>');
+                                html.push('<label for="' + field + '">' + field + '</label>');
                             });                           
                             return html.join(''); 
-                    })                        
-                    //.buttonset()
+                    }).buttonset();                        
+                 
+                    //$(numericFS).buttonset();                    
 
-                    var categoricalFS = $('<fieldset></fieldset>').attr('id', 'categoricalFS')                    
-                                        .appendTo(fieldsFS);
+                    var categoricalFS = $('<fieldset></fieldset>').attr('id', 'categoricalFS').appendTo(fieldsFS);
                     $('<legend>Categorical</legend>').appendTo(categoricalFS);
 
-                    /*categoricalFS.append(function(){                       
-                            var html = [];
-                            sFields.forEach(function(field){                               
-                                html.push('<input type="checkbox" id="' + field + '" value="' + field +'"><label for="' + field + '">' + field + '</label>');
-                            });                           
-                            return html.join(''); 
-                    })              */
-
-                    var lastDragged; 
+                    var lastDragged;
                     for(i = 0; i < sFields.length; i++){
                         /*Fill the list of fields*/
                         field = sFields[i];
@@ -147,23 +161,21 @@
                             .attr('class', 'draggable roundcorner')
                             .appendTo(categoricalFS)
                             .draggable({
-                                revert: true,  revertDuration:0, helper:'clone', stack: '#categoricalFS div', cursor: 'move', 
+                                revert: true, revertDuration: 500, helper:'clone', cursor: 'move', 
                                 snap:'.axisSlot', snapMode:'inner', snapTolerance:30,
                                 start: function(event, ui){
                                     lastDragged = $(this).parent();
-                                }
-                                });
+                                }                             
+                            });
                     }
 
-                    mainFS.find('#chartOptFS').remove();    //clear previously rendered fieldset
-                    var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS')
-                                        .appendTo(mainFS);
+                    var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS').appendTo(mainFS);
 
                     $('<legend>Chart Options</legend>').appendTo(chartOptFS);                    
                 
                     var colorBox = $('<div></div>').attr('class', 'axisPile').html('<h4>Color By</h4>').appendTo(chartOptFS);
 
-                    $('<div></div>').appendTo(colorBox).attr('id', 'xAxis')
+                    $('<div></div>').appendTo(colorBox).attr('id', 'colorBy')
                             .attr('class', 'field axisSlot roundcorner')
                             .droppable({
                                 accept: '.draggable', 
@@ -172,7 +184,7 @@
                             });
 
                     var sizeBox = $('<div></div>').attr('class', 'axisPile').html('<h4>Size By</h4>').appendTo(chartOptFS);                         
-                    $('<div></div>').appendTo(sizeBox).attr('id', 'yAxis')
+                    $('<div></div>').appendTo(sizeBox).attr('id', 'sizeBy')
                             .attr('class', 'field axisSlot roundcorner')
                             .droppable({
                                 accept: '.draggable', 
@@ -185,15 +197,14 @@
                         var droppedOn = this;
                         /*When the droppable already has a draggable, revert the previous*/
                         if($(droppedOn).children().length > 0){
-                            $(droppedOn).children().detach().prependTo($(lastDragged));
+                            $(droppedOn).children().detach();//.prependTo($(lastDragged));
                         }
-
-                        $(dropped).detach().css({
+                        $(droppedOn).append($(dropped).clone());                       
+                        /*$(dropped).detach().css({
                             top: 0,
                             left: 0
-                        }).prependTo($(droppedOn));
-                        
-                        colorBy = $($(droppedOn).children()[0]).attr('id');
+                        }).prependTo($(droppedOn));*/                        
+                        //colorBy = $($(droppedOn).children()[0]).attr('id');                   
                     }
 
                     $('<button>')
@@ -204,7 +215,7 @@
                     $('#statDiv').css('opacity', 0);
                 }
                 
-                function draw(){                    
+                function draw(){ 
                     $('#d3Chart').html('');
                     var checkedFields = [];
                     $.each($('#fieldsFS input:checked'), function(){
@@ -212,6 +223,7 @@
                     })                 
                   
                     fieldCount = checkedFields.length;              
+                    
 
                     var brushCell;
 
@@ -247,7 +259,13 @@
                     }
 
                     var canvas = d3.select('#d3Chart').append('svg');
+                
+                    var color = $("#colorBy").children()[0];
+                    var colorBy = color ? $(color).attr('id') : "maroon";
 
+                    var size = $('#sizeBy').children()[0];
+                    var sizeBy = $(size).attr('id');
+                    
                     var options = {
                         'renderTo': canvas, 
                         'chart': { 
@@ -265,13 +283,15 @@
                             'fields':Object.keys(rawdata[0]),
                             'checkedFields': checkedFields,
                             'style':{
-                                'colorBy': colorBy
+                                'colorBy': colorBy,
+                                'sizeBy': sizeBy
                             }                          
                         }                        
                     };
 
                     var chart = new MatrixPlot(options);
                     chart.draw();
+
                 }
             });
         </script>

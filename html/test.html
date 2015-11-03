@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>buttonset demo</title>
+  <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+
+    <script type="text/javascript" src="../js/bootstrap-3.3.2/dist/js/bootstrap.min.js"></script>
+   <link rel="stylesheet" href="../js/bootstrap-3.3.2/dist/css/bootstrap.min.css" /> 
+
+</head>
+<body>
+ 
+<form>
+    <!--<legend>Favorite jQuery Project</legend>
+      <input type="checkbox" id="sizzle1" name="project">
+      <label for="sizzle1">Sizzle</label>
+ 
+      <input type="checkbox" id="qunit1" name="project" checked="checked">
+      <label for="qunit1">QUnit</label>
+ 
+      <input type="checkbox" id="color1" name="project">
+      <label for="color1">Color</label>-->
+</form>
+ 
+<script>
+    var fields = ['Sizzle', 'QUnit', 'Color'];
+    var fieldset = $('<fieldset></fieldset>').appendTo($('form'));    
+
+    $(fieldset).append(function(){
+        var html = [];
+        html.push('<legend>Favorite jQuery Project</legend>');
+        fields.forEach(function(field, i ){
+            html.push('<input type="checkbox" id="' + field + '" name="project" value="' + field + '">');
+            html.push('<label for="' + field + '">' + field + '</label>');
+        });
+        return html.join('');
+    }).buttonset();
+//    $(fieldset).buttonset();
+</script>
+ 
+</body>
+</html>

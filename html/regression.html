@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+       
+        <!--<script src="d3-tip/tooltip.js"></script>-->
+        
+
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+        <link rel="stylesheet" href="../css/regression.css">
+        
+        <script src="../js/jquery-1.11.3.js"></script>
+        <script src="../js/jquery-ui-1.11.4/jquery-ui.min.js"></script>
+
+        <script src="../js/d3.v3.min.js"></script>
+        <script src="../js/d3.tip.v0.6.3.js"></script>
+        
+        <script src="../js/util.js"></script>
+        <script src="../js/OOPd3.js"></script>
+        <script src="../js/simple_statistics.min.js"></script>
+    </head>
+    <body>
+        <div id="container" style="vertical-align:top;"> 
+            <div id="menu">
+                <fieldset id="mainFS" style="width:350px;">                   
+                    <fieldset id="fileFS" style="display:inline">
+                        <legend>File Attributes</legend>
+                        <div id="fileAttr">                                
+                            <fieldset id="separatorFS" style="display:inline">
+                                <legend>Separator</legend>
+                                <input type="radio" id="delimComma" name ="delimradio" value="Comma">                                       
+                                <label for="delimComma"><i class="icon">&#44;</i></label>
+
+                                <input type="radio" id="delimSemi" name="delimradio" value="Semicolon">
+                                <label for="delimSemi"><i class="icon">&#59;</i></label>
+
+                                <input type="radio" id="delimTab" name="delimradio" value="Tab">
+                                <label for="delimTab"><i class="icon">&#47;t</i></label>                              
+
+                            </fieldset>
+                            <input id="headerFlag" type="checkbox" />
+                            <label for="headerFlag">Header<i class="icon">&#63;</i></label>
+                        </div>
+                        <br /> <br />
+                        <span class="btn-file">Browse
+                            <input id="filebrowsed" type="file">                        
+                        </span>
+                    </fieldset>
+                </fieldset>
+            </div>
+            <div id='d3Chart'> </div>           
+        </div> 
+        <script>
+            var dataset, fields;
+            var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};
+
+            $('#fileAttr').buttonset();
+            $('span.btn-file').button();
+
+            $('.btn-file :file').on('fileselect', function(event) {
+                readfile(event);
+            });
+               
+            $('.btn-file :file').on('change', function() {
+                var input = $(this);
+                input.trigger('fileselect');
+            }); 
+
+            //'check' the first radio
+            $('[name="delimradio"]:first').prop('checked', true);
+            //'check' the first radio
+            $('[name="delimradio"]:first').prop('checked', true);
+            
+            function readfile(e){  //An event handler function to be called when the input control 'changes'
+                var fileobj = e.target.files[0];
+                var fr = new FileReader();
+                fr.readAsText(fileobj);
+                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+            }                 
+            function readerHandler(e){
+                /*Generate the dataset from the file and populate the menu */
+                var checked = $('[name="delimradio"]:checked');
+                delim = separators[checked[0].value]
+
+                fileContent = e.target.result;
+                
+                var headerFlag = $('#headerFlag').prop('checked');
+                
+                dataset = csvDictReader(fileContent, delim, headerFlag);
+                originalData = dataset.map(function(row){return clone(row);});
+                
+                fields = Object.keys(dataset[0]);
+                
+                var mainFS = $('#mainFS');
+                
+                mainFS.find('#fieldsFS').remove();   //clear previously rendered fieldset
+
+                var fieldsFS = $('<fieldset></fieldset>')
+                                .attr('id', 'fieldsFS').attr('class', 'fieldPile')
+                                .css({'max-height':'250px', 'overflow': 'auto'})
+                                .html('<legend>Fields</legend>').appendTo(mainFS);
+
+                var lastDragged; 
+                for(i = 0; i < fields.length; i++){
+                    /*Fill the list of fields*/
+                    field = fields[i];
+                    $('<div>' + field + '</div>')
+                        .data('field', field)
+                        .attr('id', field)
+                        .attr('class', 'draggable roundcorner')
+                        .appendTo(fieldsFS)
+                        .draggable({
+                            revert: true,  revertDuration:0, helper:'clone', stack: '#fieldsFS div', cursor: 'move', 
+                            snap:'.axisSlot', snapMode:'inner', snapTolerance:30,
+                            start: function(event, ui){
+                                lastDragged = $(this).parent();
+                            }
+                            });
+                }
+
+                mainFS.find('#chartOptFS').remove();    //clear previously rendered fieldset
+                var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS')
+                                    .appendTo(mainFS);
+
+                $('<legend>Chart Options</legend>').appendTo(chartOptFS);
+                
+                var axes = ['xAxis', 'yAxis'];
+                var xAxisPile= $('<div></div>').data('axis', axes[0])
+                                    .attr('class', 'axisPile')
+                                    .html('<h4>'+axes[0]+'</h4>')
+                                    .appendTo('#chartOptFS');
+
+                var yAxisPile= $('<div></div>').data('axis', axes[1])
+                                    .attr('class', 'axisPile')
+                                    .html('<h4>'+axes[1]+'</h4>')
+                                    .appendTo('#chartOptFS');
+
+                $('<div></div>').appendTo(xAxisPile).attr('id', 'xAxis')
+                        .attr('class', 'field axisSlot roundcorner')
+                        .droppable({
+                            accept: '.draggable', 
+                            hoverClass: 'hovered',
+                            drop: handleFieldDrop
+                        });
+
+                $('<div></div>').appendTo(yAxisPile).attr('id', 'yAxis')
+                        .attr('class', 'field axisSlot roundcorner')
+                        .droppable({
+                            accept: '.draggable', 
+                            hoverClass: 'hovered',
+                            drop: handleFieldDrop,
+                        });
+                $('fieldset').addClass('roundcorner'); 
+                function handleFieldDrop(event, ui){
+                    var dropped = ui.draggable;
+                    var droppedOn = this;
+                    /*When the droppable already has a draggable, revert the previous*/
+                    if($(droppedOn).children().length > 0){
+                        $(droppedOn).children().detach().prependTo($(lastDragged));
+                    }
+
+                    $(dropped).detach().css({
+                        top: 0,
+                        left: 0
+                    }).prependTo($(droppedOn));
+                }
+                
+                $('<br />').appendTo(chartOptFS); 
+                $('<input />').appendTo(chartOptFS)
+                        .attr('type', 'text').attr('id', 'txtwidth')
+                        .attr('placeholder', 'Chart Width')
+                
+                $('<input />').appendTo(chartOptFS)
+                        .attr('type', 'text').attr('id', 'txtheight')
+                        .attr('placeholder', 'Chart Height')
+                
+                var btnPlot = $('<button></button>').appendTo(chartOptFS)
+                        .attr('id', 'btnPlot').attr('class', 'btn btn-default')
+                        .html('Plot').on('click', draw);                
+                
+                /*Clear chart and stat areas*/
+                $('#d3Chart').html('');
+                $('#statDiv').css('opacity', 0);
+            }
+            function draw(){
+                var axes = {};
+                var droppables = $('.axisSlot');
+                $.each(droppables, function(idx, d){    /*Get the x and y axes names*/
+                    if($(d).children().length > 0){
+                        var axis = $(d).attr('id');
+                            var axisName = $($(d).children()[0]).attr('id');
+                            axes[axis] = axisName;
+                        
+                        }
+                });
+                var xaxisName = axes['xAxis'], yaxisName = axes['yAxis'];
+                
+                if(xaxisName && yaxisName){     
+                    $('#d3Chart').html('');
+                    $('#statDiv').css('opacity', 0);            
+                    
+                    var margin = {top: 20, right: 20, bottom: 50, left: 50},
+                        width = 600 - margin.left - margin.right,
+                        height = 400 - margin.top - margin.bottom;
+                        padding = 30;
+                    var column_x = 2;
+                    var column_y = 9;
+                    var column_c = 0;
+                    var column_s = 1;
+                    var column_t = 0;
+                    var xOffset = 20;       //offset of bars and axis from right
+                    var yOffset = 40;       //offset of bars and axis from top, will squeeze the graph in vertical dir
+                    var shift_ax = 70;
+                    var headerNames = d3.keys(dataset[0]);        
+                    var keys = Object.keys(dataset[0]);         
+
+                    var xLabel = xaxisName;// Object.keys(dataset[0])[column_x];
+                    var yLabel = yaxisName;// Object.keys(dataset[0])[column_y];
+                    var tLabel = xaxisName + ' vs ' + yaxisName;// Object.keys(dataset[0])[column_t];
+                    
+                    dataset.forEach(function(d,i) {
+                          keys.forEach(function(key,i){
+                            orig    = d[key];
+                            modified  = Number(orig);
+                            d[key]    = (typeof orig === "string" && !isNaN(modified)) ? modified : orig;
+                          });                      
+                    }); 
+      
+                    var xValue = function(d) { return d[keys[column_x]]; }                  
+                    var yValue = function(d) { return d[keys[column_y]]; }                 
+                    
+                    var xMap = function(d) { return xScale(d[xaxisName]); }                  
+                    var yMap = function(d) { return yScale(d[yaxisName]); }                  
+
+                    var xMinMax = d3.extent(dataset, function(d){return d[xaxisName];});
+                    var yMinMax = d3.extent(dataset, function(d){return d[yaxisName];});
+
+                    var xScale = d3.scale.linear().domain(xMinMax).range([0,width-xOffset])
+                    var yScale = d3.scale.linear().domain(yMinMax).range([height - shift_ax , yOffset])        
+
+                    var xAxis = d3.svg.axis().scale(xScale).orient("bottom")
+                    var yAxis = d3.svg.axis().scale(yScale).orient("left")
+
+                    var cValue = function(d) { return d[keys[column_c]];}
+                    var color = d3.scale.category10();
+
+                    var mySvg = d3.select("#d3Chart").append("svg").attr("id","chart")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+
+                    var tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
+                    var xMin = d3.min(dataset, xValue );                  
+                    var xMax = d3.max(dataset, xValue );
+                    var yMin = d3.min(dataset, yValue );                        
+                    var yMax = d3.max(dataset, yValue );
+
+                    // x-axis
+                    mySvg.append("g").classed("axis", true) 
+                        .attr("transform", "translate(0," + (height - shift_ax)  + ")")
+                        .call(xAxis).append("text").attr("class", "label")
+                        .attr("y", padding).attr("x", width/2)
+                        .style("text-anchor", "end")
+                        .text(function(){ return xLabel});
+
+                    // y-axis
+                    mySvg.append("g").classed("axis", true) .call(yAxis)
+                        .append("text").attr("class", "label")
+                        .attr("transform", "rotate(-90)").attr("y", -padding -5)
+                        .attr("x", -height/2).style("text-anchor", "end")
+                        .text(function(){ return yLabel});
+                      
+                    // draw dots
+                    points = mySvg.selectAll(".dot").data(dataset).enter()
+                        .append("circle")
+                        .attr("class", "dot").attr("r", 3.5)
+                        .attr("cx", xMap).attr("cy", yMap).style("fill", "steelBlue")
+
+                    mySvg.append("text")
+                        .attr("x", width/ 2).attr("y", 0 + margin.top)
+                        .attr("text-anchor", "middle").attr("font-family", "sans-serif")
+                        .attr("font-size", "20px").attr("font-weight", "bold")
+                        .attr("fill", "black").text(function(){return tLabel});
+        
+                    //var cols = [keys[column_x], keys[column_y]];
+                    var points = getHexPoints(dataset, [xaxisName, yaxisName]);
+
+                    var filteredx = points.map(function(elem){ return elem[0] });
+                    var filteredy = points.map(function(elem){ return elem[1] });
+
+                    var meanx = ss.mean(filteredx);
+                    var meany = ss.mean(filteredy);
+                    var varx = ss.sampleVariance(filteredx);
+                    var vary = ss.sampleVariance(filteredy);
+                    var cor = ss.sampleCorrelation(filteredx,filteredy);
+
+                    var linReg1 = ss.linearRegression(points);
+                    var linReg = ss.linearRegressionLine(ss.linearRegression(points));
+
+                    mySvg.append("line").style("stroke", "red").attr('stroke-width', 2)
+                        .attr("x1",xScale(xMinMax[0])).attr("y1",yScale(linReg(yMinMax[0])))  
+                        .attr("x2",xScale(xMinMax[1])).attr("y2",yScale(linReg(yMinMax[1]))) 
+
+                    var txtStat = mySvg.append("text")
+                        .attr("font-family", "sans-serif").attr("font-size", "10px")
+                        .attr("font-weight", "bold").attr("fill", "black")
+                        .attr("y",height - 20);
+
+                    txtStat.append("tspan").attr("x",0).text("Number of samples: "+ points.length);
+                    txtStat.append("tspan").attr("x",0).attr("dy","1.1em").text("Mean of x: "+ meanx.toFixed(4));
+                    txtStat.append("tspan").attr("x",0).attr("dy","1.1em").text("Sample variance of x: "+ varx.toFixed(4));
+                    txtStat.append("tspan").attr("x",0).attr("dy","1.1em").text("Mean of y: "+ meany.toFixed(4));
+                    txtStat.append("tspan").attr("x",0).attr("dy","1.1em").text("Sample variance of y: "+ vary.toFixed(4));
+                    txtStat.append("tspan").attr("x",0).attr("dy","1.1em").text("Correlation: "+ cor.toFixed(4));
+                    txtStat.append("tspan").attr("x",0).attr("dy","1.1em")
+                        .text("Linear regression: Y = " + linReg1['m'].toFixed(4) + "X + " + linReg1['b'].toFixed(4));
+                }
+
+                /*function getHexPoints(AofO, cols){
+                    var output = AofO.map(function(entry, i){ 
+                        return cols.map(function(col){
+                            return entry[col];
+                        });
+                    }); 
+                    return output;
+                }*/
+            }
+        </script>
+    </body>
+</html>

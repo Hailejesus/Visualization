@@ -164,69 +164,6 @@ function csvDictWriter(dictArray, delim){
 
     return rows;
 }
-
-function max(x) {
-    var value;
-    for (var i = 0; i < x.length; i++) {
-        // On the first iteration of this loop, max is
-        // undefined and is thus made the maximum element in the array
-        if (x[i] > value || value === undefined) {
-            value = x[i];
-        }
-    }
-    return value;
-}
-function min(x) {
-    var value;
-    for (var i = 0; i < x.length; i++) {
-        // On the first iteration of this loop, min is
-        // undefined and is thus made the minimum element in the array
-        if (x[i] < value || value === undefined) {
-            value = x[i];
-        }
-    }
-    return value;
-}
-
-function mean(x) {
-    // The mean of no numbers is null
-    if (x.length === 0) { return null; }
-
-    return sum(x) / x.length;
-}
-
-
-function variance(x) {
-    // The variance of no numbers is null
-    if (x.length === 0) { return null; }
-
-    var meanValue = mean(x),
-        deviations = [];
-
-    // Make a list of squared deviations from the mean.
-    for (var i = 0; i < x.length; i++) {
-        deviations.push(Math.pow(x[i] - meanValue, 2));
-    }
-
-    // Find the mean value of that list
-    return mean(deviations);
-}
-
-
-/**
- * The [standard deviation](http://en.wikipedia.org/wiki/Standard_deviation)
- * is the square root of the variance.
- *
- * @param {Array<number>} x input
- * @returns {number} standard deviation
- */
-function standardDeviation(x) {
-    // The standard deviation of no numbers is null
-    if (x.length === 0) { return null; }
-
-    return Math.sqrt(variance(x));
-}
-
 function sum(x) {
     var value = 0;
     for (var i = 0; i < x.length; i++) {

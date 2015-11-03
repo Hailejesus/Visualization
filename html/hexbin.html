@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+        <link rel="stylesheet" href="../css/hexbin.css">
+        
+        <script src="../js/jquery-1.11.3.js"></script>
+        <script src="../js/jquery-ui-1.11.4/jquery-ui.min.js"></script>
+
+        <script src="../js/d3.v3.min.js"></script>
+        <script src="../js/d3.hexbin.min.js"></script>
+        <script src="../js/d3.tip.v0.6.3.js"></script>
+        <script src="../js/d3-legend.min.js"></script>
+        
+        <script src="../js/util.js"></script>
+        <script src="../js/OOPd3.js"></script>
+
+    </head>
+    <body>
+       <div id="container" style="vertical-align:top;"> 
+            <div id="menu">
+                <fieldset id="mainFS" style="width:350px;">                   
+                    <fieldset id="fileFS" style="display:inline">
+                        <legend>File Attributes</legend>
+                        <div id="fileAttr">                                
+                            <fieldset id="separatorFS" style="display:inline">
+                                <legend>Separator</legend>
+                                <input type="radio" id="delimComma" name ="delimradio" value="Comma">                                       
+                                <label for="delimComma"><i class="icon">&#44;</i></label>
+
+                                <input type="radio" id="delimSemi" name="delimradio" value="Semicolon">
+                                <label for="delimSemi"><i class="icon">&#59;</i></label>
+
+                                <input type="radio" id="delimTab" name="delimradio" value="Tab">
+                                <label for="delimTab"><i class="icon">&#47;t</i></label>                              
+
+                            </fieldset>
+                            <input id="headerFlag" type="checkbox" />
+                            <label for="headerFlag">Header<i class="icon">&#63;</i></label>
+                        </div>
+                        <br /> <br />
+                        <span class="btn-file">Browse
+                            <input id="filebrowsed" type="file">                        
+                        </span>
+                    </fieldset>
+                </fieldset>
+            </div>
+            <div id='d3Chart'> </div>           
+        </div> 
+        <script>
+            var dataset, fields;
+            var separators = {'Comma': ',', 'Semicolon': ';', 'Tab': '\t'};
+
+            $('#fileAttr').buttonset();
+            $('span.btn-file').button();
+
+            $('.btn-file :file').on('fileselect', function(event) {
+                readfile(event);
+            });
+               
+            $('.btn-file :file').on('change', function() {
+                var input = $(this);
+                input.trigger('fileselect');
+            }); 
+
+            //'check' the first radio
+            $('[name="delimradio"]:first').prop('checked', true);
+            function readfile(e){  //An event handler function to be called when the input control 'changes'
+                var fileobj = e.target.files[0];
+                var fr = new FileReader();
+                fr.readAsText(fileobj);
+                fr.onload = readerHandler;  //onload implies, after reading is complete call 'readerHandler'
+            } 
+                
+            function readerHandler(e){
+                /*Generate the dataset from the file and populate the menu */
+                var checked = $('[name="delimradio"]:checked');
+                delim = separators[checked[0].value]
+
+                fileContent = e.target.result;
+                
+                var headerFlag = $('#headerFlag').prop('checked');
+                
+                dataset = csvDictReader(fileContent, delim, headerFlag);
+                originalData = dataset.map(function(row){return clone(row);});
+                
+                fields = Object.keys(dataset[0]);
+                
+                var mainFS = $('#mainFS');
+                
+                mainFS.find('#fieldsFS').remove();   //clear previously rendered fieldset
+
+                var fieldsFS = $('<fieldset></fieldset>')
+                                .attr('id', 'fieldsFS').attr('class', 'fieldPile')
+                                .css({'max-height':'250px', 'overflow': 'auto'})
+                                .html('<legend>Fields</legend>').appendTo(mainFS);
+
+                var lastDragged; 
+                for(i = 0; i < fields.length; i++){
+                    /*Fill the list of fields*/
+                    field = fields[i];
+                    $('<div>' + field + '</div>')
+                        .data('field', field)
+                        .attr('id', field)
+                        .attr('class', 'draggable roundcorner')
+                        .appendTo(fieldsFS)
+                        .draggable({
+                            revert: true,  revertDuration:0, helper:'clone', stack: '#fieldsFS div', cursor: 'move', 
+                            snap:'.axisSlot', snapMode:'inner', snapTolerance:30,
+                            start: function(event, ui){
+                                lastDragged = $(this).parent();
+                            }
+                            });
+                }
+
+                mainFS.find('#chartOptFS').remove();    //clear previously rendered fieldset
+                var chartOptFS = $('<fieldset></fieldset>').attr('id', 'chartOptFS')
+                                    .appendTo(mainFS);
+
+                $('<legend>Chart Options</legend>').appendTo(chartOptFS);
+                
+                var axes = ['xAxis', 'yAxis'];
+                var xAxisPile= $('<div></div>').data('axis', axes[0])
+                                    .attr('class', 'axisPile')
+                                    .html('<h4>'+axes[0]+'</h4>')
+                                    .appendTo('#chartOptFS');
+
+                var yAxisPile= $('<div></div>').data('axis', axes[1])
+                                    .attr('class', 'axisPile')
+                                    .html('<h4>'+axes[1]+'</h4>')
+                                    .appendTo('#chartOptFS');
+
+                $('<div></div>').appendTo(xAxisPile).attr('id', 'xAxis')
+                        .attr('class', 'field axisSlot roundcorner')
+                        .droppable({
+                            accept: '.draggable', 
+                            hoverClass: 'hovered',
+                            drop: handleFieldDrop
+                        });
+
+                $('<div></div>').appendTo(yAxisPile).attr('id', 'yAxis')
+                        .attr('class', 'field axisSlot roundcorner')
+                        .droppable({
+                            accept: '.draggable', 
+                            hoverClass: 'hovered',
+                            drop: handleFieldDrop,
+                        });
+                $('fieldset').addClass('roundcorner'); 
+                function handleFieldDrop(event, ui){
+                    var dropped = ui.draggable;
+                    var droppedOn = this;
+                    /*When the droppable already has a draggable, revert the previous*/
+                    if($(droppedOn).children().length > 0){
+                        $(droppedOn).children().detach().prependTo($(lastDragged));
+                    }
+
+                    $(dropped).detach().css({
+                        top: 0,
+                        left: 0
+                    }).prependTo($(droppedOn));
+                }
+                
+                $('<br />').appendTo(chartOptFS); 
+                $('<input />').appendTo(chartOptFS)
+                        .attr('type', 'text').attr('id', 'txtwidth')
+                        .attr('placeholder', 'Chart Width')
+                
+                $('<input />').appendTo(chartOptFS)
+                        .attr('type', 'text').attr('id', 'txtheight')
+                        .attr('placeholder', 'Chart Height')
+                
+                var btnPlot = $('<button></button>').appendTo(chartOptFS)
+                        .attr('id', 'btnPlot').attr('class', 'btn btn-default')
+                        .html('Plot').on('click', draw);                
+                
+                /*Clear chart and stat areas*/
+                $('#d3Chart').html('');
+                $('#statDiv').css('opacity', 0);
+            }
+
+            function draw(){        
+                var axes = {};
+                var droppables = $('.axisSlot');
+                $.each(droppables, function(idx, d){    /*Get the x and y axes names*/
+                    if($(d).children().length > 0){
+                        var axis = $(d).attr('id');
+                            var axisName = $($(d).children()[0]).attr('id');
+                            axes[axis] = axisName;
+                        
+                        }
+                });
+                var xaxisName = axes['xAxis'], yaxisName = axes['yAxis'];
+
+                if(xaxisName && yaxisName){             
+                    $('#d3Chart').html('');
+                    $('#statDiv').css('opacity', 0);
+                    var margin = {top: 30, right: 30, bottom: 30, left: 30};
+                    var width = 800 - 2*margin.left - 2*margin.right;
+                    var height = 600 - 2*margin.top - 2*margin.bottom;
+                    var padding = 30;
+                    var cir_r = 2; //Define circle radius
+                    var hex_r = 20; //Define hexes radius
+                    var gap = 0; //Define spacing between hexes
+                    var column_x = xaxisName;//13; //column to sample in the input data x axis
+                    var column_y = yaxisName;14; //y axis
+                    var column_c = 0; //color encoder
+                    var column_s = 0; //size encoder
+                    var column_t = 0; //title 
+                    var hex_opacity = 1; //hexa opacity
+
+                    var color_max = 30;
+                    var xOffset = 80;     	//offset of graph and axis from right gives space for legend or something else
+                    var yOffset = 60;     	//offset of graph and axis from top
+                    var xa_start = 0;		//offset of left axis and graph
+                    var ya_start = 0;		//offset of bottom axis and graph
+                    var shift_ax = 0;		//translate bottom axis 
+                    var shift_ay = 0;		//translate left axis
+
+                    //Start and end of clipping
+                    var xc_begin  = 0;
+                    var xc_Offset = 80;			//usually same as xOffSet if you want to clip to the end of the axis
+                    var xc_end 	  = xc_Offset + xc_begin;
+                    var yc_begin  = 0;
+                    var yc_Offset = 60;			//usually same as yOffSet if you want to clip to the ens of the axis
+                    var yc_end 	  = yc_Offset + yc_begin;
+                    //Start and end of clipping
+
+                    //Legend position
+                    var legend_x  = 45;
+                    var legend_y  = 20;
+                    //Legend position
+
+                    //x label position
+                    var text_padding_axx = width/2 - (margin.left + margin.right)/2;
+                    var text_padding_axy = 40;
+                    //x label position
+
+                    //y label position
+                    var text_padding_ayx = 45;
+                    var text_padding_ayy = height/2;
+                    //y label position
+
+                    //title position
+                    var title_x = width/2 - (margin.left + margin.right)/2;
+                    var title_y = 30;
+                    //title position
+
+                    var a_f = ".d"        //axis number format
+
+                    var points = [];
+                    d3.csv("../data/dace700_csv.csv", function(error, dataset){ 
+                    var headerNames = d3.keys(dataset[0]);				
+                    var keys = Object.keys(dataset[0]); 			
+                    
+                    var xLabel = xaxisName;// Object.keys(dataset[0])[column_x];
+                    var yLabel = yaxisName;// Object.keys(dataset[0])[column_y];
+                    var tLabel = xaxisName +' vs ' + yaxisName;// Object.keys(dataset[0])[column_t];             	
+                    
+                    var xMinMax = d3.extent(dataset, function(d){return d[xaxisName];});
+                    var yMinMax = d3.extent(dataset, function(d){return d[yaxisName];});
+
+                    var xScale = d3.scale.linear().domain(xMinMax).range([xa_start, width - xOffset]).nice();  
+                    var yScale = d3.scale.linear().domain(yMinMax).range([height - ya_start, yOffset]).nice(); 
+
+                    var xAxis = d3.svg.axis().scale(xScale).orient("bottom")
+                    var yAxis = d3.svg.axis().scale(yScale).orient("left")
+
+                    var myHexbin = d3.hexbin().radius(hex_r); 				
+
+                    var mySvg = d3.select("#d3Chart").append("svg").attr("id", "chart")  
+                            .attr("width", width + margin.left + margin.right)
+                            .attr("height", height + margin.top + margin.bottom)
+                            .append("g")
+                            .attr("transform", "translate("+ 2*margin.left + ",0)");
+
+                    //points = getHexPoints(dataset, [xaxisName, yaxisName]);                    
+                    dataset.forEach(function(d) {
+                       points.push([xScale(d[xaxisName]), yScale(d[yaxisName])]);
+                    });                    
+
+                    var myClip = mySvg.append("clipPath") .attr("id", "clip")
+                        .append("rect") .attr("class", "mesh")
+                        .attr("transform", "translate(" + xc_begin + "," + yc_end + ")")
+                        .attr("width", width - xc_end).attr("height", height - yc_end);
+
+                    var tip = d3.tip().attr('class', 'd3-tip').offset([-10, -0])
+                                .html(function(d) {
+                                    var html = [];
+
+                                    html.push("<span style='color:white;font-size:10px'>Count:</span>");
+                                    html.push("<span style='color:red;font-size:10px'>" + d.length + "</span>");
+                                    return html.join('');
+                                })
+                    var color = d3.scale.linear().domain([0, color_max/2])							
+                                .range(["white","steelblue"]).interpolate(d3.interpolateLab);
+
+                    var hexes = mySvg.append("g").attr("clip-path", "url(#clip)")
+                            .selectAll(".hexagon").data(myHexbin(points)).enter().append("path")
+                            .attr("class", "hexagon").attr("d", myHexbin.hexagon(hex_r - gap))
+                            .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                            .style("fill", function(d) { return color( d.length); })
+                            .style("opacity", hex_opacity)
+                            .on("mouseover.mover", mover).on("mouseover.tip_s", tip.show)
+                            .on("mouseout.mout", mout).on("mouseout.tip_h", tip.hide);
+
+                    mySvg.call(tip)		
+                    var my_legend = mySvg.append("g").attr("class", "legendLinear")
+                        .attr("transform", "translate(" + (width-legend_x) + "," + (height/2 - legend_y) + ")")
+                        .append("text").attr("x", 0).attr("y", -5 )
+                        .style("text-anchor", "start").style("font-family", "sans-serif")
+                        .style("font-size", "12px").style("font-weight", "bold")
+                        .style("fill", "black").text("Count");
+
+                    var legendLinear = d3.legend.color().shapeWidth(15).orient('vertical')
+                          .labelFormat(d3.format(".01f")).labelOffset(5).shapePadding(0)
+                          .cells([0, color_max*0.25, color_max*0.5, color_max*0.75, color_max*1])
+                          .scale(color);
+
+                    mySvg.select(".legendLinear").call(legendLinear);
+
+                    mySvg.append("text").attr("x", title_x ).attr("y", title_y)
+                        .style("text-anchor", "middle").style("font-family", "sans-serif")
+                        .style("font-size", "20px").style("font-weight", "bold")
+                        .style("fill", "black").text("Hexagonal Binning");
+
+                    mySvg.append("g").classed("axis", true)  
+                        .attr("transform", "translate(0," + (height - shift_ax) + ")")
+                        .call(xAxis)
+                        .append("text")
+                        .attr("y", text_padding_axy ).attr("x", text_padding_axx )
+                        .style("font-family", "sans-serif").style("font-size", "12px")
+                        .style("font-weight", "bold").style("fill", "black")
+                        .style("text-anchor", "middle")
+                        .text(function(){ return xLabel})
+
+                    mySvg.append("g").classed("axis", true)  
+                        .attr("transform", "translate(" + shift_ay + ",0)")
+                        .call(yAxis)
+                        .append("text")
+                        .attr("transform", "rotate(-90)")
+                        .attr("y", - text_padding_ayx ).attr("x", - text_padding_ayy )
+                        .style("font-family", "sans-serif").style("font-size", "12px")
+                        .style("font-weight", "bold") .style("fill", "black")
+                        .style("text-anchor", "end").text(function(){ return yLabel})
+        
+                    circles = mySvg.selectAll("circle").data(points)
+                        .enter().append("circle").attr("class", "dot")	
+                        .attr("cx", function(d) { return d[0]; })
+                        .attr("cy", function(d) { return d[1]; })
+                        .attr("r", cir_r)	                        
+           
+                    //Function to call when you mouseover a hexa
+                    function mover(d) {
+                      var hex_sel = d3.select(this).transition().duration(10)	
+                            .style("fill", "orange").style("fill-opacity", 1);
+                    }
+
+                    //Mouseout function
+                    function mout(d) { 
+                        var hex_sel = d3.select(this).transition().duration(1000)
+                           .style("fill", function(d) { return color(d.length); })
+                           .style("fill-opacity", hex_opacity);
+                    };
+                    //Responsive svg
+                    function responsivefy(svg) {
+                        // get container + svg aspect ratio
+                        var container = d3.select(svg.node().parentNode),
+                            width  = parseInt(svg.style("width")),        //convert string to number
+                            height = parseInt(svg.style("height")),       //convert string to number
+                            aspect = width / height;
+
+
+                        svg.attr("viewBox", "0 0 " + width + " " + height)
+                            .attr("perserveAspectRatio", "xMinYMid")
+                            //.call(resize);   //seems that is not needed
+                        d3.select(window).on("resize." + container.attr("id"), resize);
+
+                        // get width of container and resize svg to fit it
+                        function resize() {
+                            var targetWidth = parseInt(container.style("width"));
+                            if (targetWidth < width + margin.left + margin.right){ 
+                                svg.attr("width", targetWidth);
+                                svg.attr("height", Math.round(targetWidth / aspect));
+                          } 
+                        }
+                    }
+                    });
+                }
+            }
+        </script>	
+    </body>
+</html>
